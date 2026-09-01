@@ -1,0 +1,17 @@
+{
+  "skill_name": "world-bible",
+  "evals": [
+    {
+      "id": 1,
+      "prompt": "提炼以下短篇小说的主旨、情感基调与风格定调：\n\n（文本略，见 fixtures）",
+      "expected_output": "world.md 包含主旨/世界观/情感基调/风格定调四节",
+      "files": [],
+      "expectations": [
+        "主旨为一句话 + 深层命题",
+        "情感基调给出整体词与理由",
+        "风格定调给出具体的主题 id 与理由",
+        "所有内容忠于原文，无编造"
+      ]
+    }
+  ]
+}

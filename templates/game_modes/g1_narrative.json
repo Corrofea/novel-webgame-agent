@@ -1,0 +1,48 @@
+{
+  "id": "g1_narrative",
+  "name": "叙事冒险",
+  "适用": "小说/故事/剧本/网文：单主角、连续情节线、人物关系推动剧情",
+  "selection_criteria": [
+    "有明确单一主角（或玩家代入位）",
+    "情节以连续时间线推进，前后因果强",
+    "人物关系与情感线是剧情核心",
+    "存在多个让玩家改变世界线的抉择点"
+  ],
+  "chunk_strategy": {
+    "unit": "章/卷（保持时间线顺序）",
+    "method": "按章节分块，每块独立摘要；跨块保留人物状态与伏笔标记",
+    "decision_point_extraction": "从每块提取：可重写原文走向的抉择（≥3 个选项的潜力）、人物情感转折、伏笔点"
+  },
+  "design_guidance": {
+    "structure": "入口场景 → 线性主干 + 分支 → 汇聚到 2~3 个最终结局",
+    "branch_policy": "每节点 2~3 个选项；分支在 2~3 个节点内回收汇合，防分支爆炸",
+    "affection": "1~3 个核心角色好感度，阈值触发专属剧情/结局",
+    "attributes": "属性 0~4 个，如勇气/智慧/声望，用于条件判定与结局门槛",
+    "pacing": "每 3~5 个场景至少一个抉择；开局 2 个场景内给出第一个选择"
+  },
+  "open_slots": [
+    "角色清单 ← characters.json",
+    "剧情节点 ← 按章节切分，保留关键对话",
+    "决策点 ← 原文情节转折处，选项来自原文可能的走向（合理扩展）",
+    "好感度对象 ← 与主角互动最深的 1~3 人",
+    "结局 ← 原文结局 + 合理变体"
+  ],
+  "qa_criteria": [
+    "所有选项有 goto 且目标存在",
+    "好感度阈值条件在可达路径上可达成",
+    "结局节点从入口可达，无死路",
+    "结局数量 2~5，与 mode.js 的 endings 配置一致"
+  ],
+  "runtime": {
+    "mode_id": "g1_narrative",
+    "mode_name": "叙事冒险",
+    "mechanics": ["choices", "affection"],
+    "attributes": [],
+    "inventory": {"enabled": false, "limit": 20},
+    "panels": ["status", "choices"],
+    "perspectives": [],
+    "achievements": {"enabled": false},
+    "commentary": {"enabled": false},
+    "endings": {"min": 2, "max": 5}
+  }
+}

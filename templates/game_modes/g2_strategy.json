@@ -1,0 +1,49 @@
+{
+  "id": "g2_strategy",
+  "name": "策略模拟",
+  "适用": "历史文献/编年史/群像长卷/数据密集文本（强信息量）",
+  "selection_criteria": [
+    "多势力/多方行动，无单一主角",
+    "时间线长且事件密集，数值/资源/人口等数据是文本组成部分",
+    "情节连续性弱于事件罗列",
+    "决策影响宏观走向（势力兴衰）而非个人命运"
+  ],
+  "chunk_strategy": {
+    "unit": "时期/事件阶段",
+    "method": "按历史时期或重大事件切块；每块提取结构化数据：势力表（成员/实力/关系）、事件表（时间/参与者/后果）、资源变化",
+    "decision_point_extraction": "从每块提取：战略抉择（扩张/结盟/征伐/外交）、资源分配决策"
+  },
+  "design_guidance": {
+    "structure": "时间线推进器（每回合一个时期）+ 事件卡片 + 策略面板",
+    "branch_policy": "战略选项 2~4 个，选项效果以数值变化呈现，不做长分支剧情",
+    "attributes": "资源类数值 3~6 个（如兵力/民心/财力/声望），回合间结算增减",
+    "achievements": "成就系统记录关键里程碑（如'三分天下'）",
+    "pacing": "每时期至少一个战略决策；数值变化可视化呈现",
+    "narration": "原文叙事压缩为事件卡片摘要，避免大段原文"
+  },
+  "open_slots": [
+    "势力清单 ← 文本中出现的派系/阵营",
+    "资源类型 ← 文本中实际提及的数值维度",
+    "事件卡片 ← 每时期关键事件",
+    "战略选项 ← 该时期原文出现的决策（合纵/连横/征伐等）",
+    "成就 ← 关键历史节点"
+  ],
+  "qa_criteria": [
+    "资源数值在回合结算中守恒（增减有来源）",
+    "事件卡片按时间线顺序排列",
+    "每个时期有可选战略与对应后果",
+    "成就条件可达成"
+  ],
+  "runtime": {
+    "mode_id": "g2_strategy",
+    "mode_name": "策略模拟",
+    "mechanics": ["choices", "attributes", "achievements"],
+    "attributes": [],
+    "inventory": {"enabled": false, "limit": 20},
+    "panels": ["status", "choices", "achievements"],
+    "perspectives": [],
+    "achievements": {"enabled": true},
+    "commentary": {"enabled": false},
+    "endings": {"min": 2, "max": 5}
+  }
+}

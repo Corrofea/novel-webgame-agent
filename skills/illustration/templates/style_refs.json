@@ -1,0 +1,47 @@
+{
+  "说明": "画风模板：每个画风 = 提示词前缀 + 负向提示词。一次游戏生成只允许选一个画风。",
+  "styles": [
+    {
+      "id": "ink_wash",
+      "name": "水墨淡彩",
+      "适用": "古风/仙侠/武侠",
+      "prompt_prefix": "traditional Chinese ink wash painting style, soft watercolor, elegant brush strokes, misty atmosphere, muted earth tones",
+      "negative": "photorealistic, 3d render, western cartoon, harsh colors, modern clothing"
+    },
+    {
+      "id": "flat_modern",
+      "name": "扁平插画",
+      "适用": "现代/都市/日常",
+      "prompt_prefix": "flat vector illustration, geometric shapes, solid color blocks, clean composition, modern urban style",
+      "negative": "photorealistic, gradient noise, detailed texture, dark background"
+    },
+    {
+      "id": "noir_line",
+      "name": "黑白线稿+红强调",
+      "适用": "悬疑/推理",
+      "prompt_prefix": "black and white line art with dramatic red accent, noir lighting, high contrast, film grain, suspense atmosphere",
+      "negative": "colorful, bright, cheerful, cartoon"
+    },
+    {
+      "id": "cyber_neon",
+      "name": "赛博霓虹",
+      "适用": "科幻/未来",
+      "prompt_prefix": "cyberpunk style, neon glow lighting, hard edges, reflective surfaces, futuristic city, saturated cyan and magenta",
+      "negative": "rustic, medieval, organic textures, muted colors"
+    },
+    {
+      "id": "oil_classic",
+      "name": "古典油画厚涂",
+      "适用": "西幻/史诗",
+      "prompt_prefix": "classical oil painting, impasto texture, dramatic chiaroscuro, renaissance composition, rich warm palette",
+      "negative": "anime, flat colors, digital art look"
+    },
+    {
+      "id": "cel_japan",
+      "name": "赛璐璐日系",
+      "适用": "治愈/轻小说",
+      "prompt_prefix": "cel shading anime style, clean linework, pastel color palette, soft lighting, gentle expressions, key visual quality",
+      "negative": "photorealistic, dark horror, heavy texture"
+    }
+  ]
+}

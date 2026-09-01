@@ -1,0 +1,5 @@
+requests>=2.31
+Pillow>=10.0
+python-docx>=1.1
+# 可选：S3/R2 上传（pip install boto3）
+# boto3>=1.34

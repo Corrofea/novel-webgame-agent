@@ -1,0 +1,16 @@
+{
+  "id": "modern",
+  "name": "现代简洁",
+  "适用": "都市/现实/日常",
+  "colors": {
+    "bg": "#F7F9FB",
+    "panel": "#FFFFFF",
+    "accent": "#2196F3",
+    "accent_light": "#64B5F6",
+    "text": "#212529",
+    "sub": "#8C98A5",
+    "border": "#DEE4EA"
+  },
+  "fonts": { "title": "PingFang SC, 'Helvetica Neue', sans-serif", "body": "PingFang SC, sans-serif" },
+  "cover": { "title_color": "#2196F3", "ornament": "line" }
+}

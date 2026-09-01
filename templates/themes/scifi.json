@@ -1,0 +1,16 @@
+{
+  "id": "scifi",
+  "name": "科幻霓虹",
+  "适用": "科幻/未来/赛博",
+  "colors": {
+    "bg": "#101622",
+    "panel": "#1A2434",
+    "accent": "#00E5FF",
+    "accent_light": "#4DD8FF",
+    "text": "#E6F0FF",
+    "sub": "#8FA3C0",
+    "border": "#2E4059"
+  },
+  "fonts": { "title": "'Courier New', monospace", "body": "PingFang SC, sans-serif" },
+  "cover": { "title_color": "#00E5FF", "ornament": "grid" }
+}

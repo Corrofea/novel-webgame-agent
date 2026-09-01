@@ -1,0 +1,16 @@
+{
+  "id": "noir",
+  "name": "暗黑悬疑",
+  "适用": "侦探/推理/惊悚",
+  "colors": {
+    "bg": "#141414",
+    "panel": "#1E1E1E",
+    "accent": "#D4A017",
+    "accent_light": "#E6C35C",
+    "text": "#E8E4DC",
+    "sub": "#8A8678",
+    "border": "#3A3A3A"
+  },
+  "fonts": { "title": "Georgia, serif", "body": "PingFang SC, sans-serif" },
+  "cover": { "title_color": "#D4A017", "ornament": "line" }
+}

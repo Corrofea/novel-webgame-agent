@@ -1,0 +1,40 @@
+{
+  "api": {
+    "base_url": "https://api.deepseek.com",
+    "api_key_env": "DEEPSEEK_API_KEY",
+    "chat_model": "deepseek-chat",
+    "reasoner_model": "deepseek-reasoner",
+    "timeout": 180,
+    "max_retries": 3,
+    "retry_delay": 5
+  },
+  "workers": {
+    "detect":   { "model": "chat" },
+    "summarize": { "model": "chat" },
+    "style":    { "model": "chat" },
+    "characters": { "model": "chat" },
+    "design":   { "model": "reasoner" },
+    "generate": { "model": "chat" },
+    "repair":   { "model": "chat" },
+    "qa_review": { "model": "reasoner" }
+  },
+  "pipeline": {
+    "chunk_chars": 8000,
+    "qa_max_rounds": 3,
+    "context_budget_chars": 40000,
+    "mock_mode": false,
+    "illustration_styles": {
+      "ancient": "ink_wash",
+      "modern": "flat_modern",
+      "scifi": "cyber_neon",
+      "western": "oil_classic",
+      "noir": "noir_line",
+      "light": "cel_japan"
+    }
+  },
+  "upload": {
+    "backend": "local",
+    "link_ttl_minutes": 30,
+    "expiry_enabled": true
+  }
+}

@@ -1,0 +1,17 @@
+{
+  "id": "short_novel",
+  "适用": "短篇/中篇（字数 < 8 万字）",
+  "stages": [
+    { "name": "ingest",   "worker": "parse",   "note": "读取+清洗+章节识别" },
+    { "name": "detect",   "worker": "detect",  "note": "类型分析→模式选择→主题/基调" },
+    { "name": "chunk",    "worker": "parse",   "note": "按模式分块" },
+    { "name": "characters", "worker": "world", "note": "人物信息摘要（novel-character-cards）" },
+    { "name": "style",    "worker": "world",   "note": "主旨/世界观/情感基调" },
+    { "name": "game_init", "worker": "tool",   "note": "游戏文件夹初始化（模板实例化）" },
+    { "name": "design",   "worker": "design",  "note": "设计brief+决策点+场景图" },
+    { "name": "generate", "worker": "generate","note": "生成游戏数据文件" },
+    { "name": "qa",       "worker": "qa",      "note": "结构/图/语义校验+冒烟（失败退回 generate，≤N 次）" },
+    { "name": "illustrate", "worker": "tool",  "note": "插画提示词生成（角色立绘+场景背景，本地；无图片 API 时只出提示词）" },
+    { "name": "package",  "worker": "tool",    "note": "打包+上传+到期清理登记" }
+  ]
+}

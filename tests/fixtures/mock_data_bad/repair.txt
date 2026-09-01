@@ -1,0 +1,1 @@
+{"patch": {"scenes": {"s001": {"id": "s001", "narration": "修了个寂寞。", "choices": []}}}}

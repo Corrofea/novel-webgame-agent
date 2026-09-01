@@ -1,0 +1,18 @@
+{
+  "skill_name": "novel-character-cards",
+  "evals": [
+    {
+      "id": 1,
+      "prompt": "整理小说中的人物信息：\n\n《红楼梦》节选：黛玉方进入房时……（见 fixtures 或任意红楼梦选段）",
+      "expected_output": "生成 characters.json 与 Word 人物卡片册；实体消歧准确",
+      "files": [],
+      "expectations": [
+        "characters.json 包含所有人物的结构化信息",
+        "林黛玉的别名包含 林姑娘、黛玉、潇湘妃子（实体消歧）",
+        "卡片包含性格特点、主要经历、人物关系、结局等字段",
+        "word 文档每人物独立一页，书名/作者来自 JSON",
+        "未提及字段标注'未提及'，无编造"
+      ]
+    }
+  ]
+}

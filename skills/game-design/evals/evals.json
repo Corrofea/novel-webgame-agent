@@ -1,0 +1,18 @@
+{
+  "skill_name": "game-design",
+  "evals": [
+    {
+      "id": 1,
+      "prompt": "基于以下世界观与模式模板，设计场景图并生成游戏数据：\n（样例输入见 fixtures，略）",
+      "expected_output": "games/<书>/data/ 下 5 个数据文件全部生成且通过 qa-check 校验",
+      "files": [],
+      "expectations": [
+        "scenes.js 所有节点从入口可达，无死路",
+        "选项文案具体可感知，非空泛选项",
+        "好感度/属性 id 与 mode.js 一致",
+        "结局 2~5 个且可达成",
+        "数据无截断，narration 无剧本标记"
+      ]
+    }
+  ]
+}

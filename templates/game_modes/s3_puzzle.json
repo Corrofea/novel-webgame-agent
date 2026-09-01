@@ -1,0 +1,49 @@
+{
+  "id": "s3_puzzle",
+  "name": "解谜探案",
+  "适用": "侦探/推理/悬疑文本（强逻辑）",
+  "selection_criteria": [
+    "推理/解谜是文本核心，人物与环境变动弱于逻辑链",
+    "存在案件/谜题结构：线索 → 推导 → 结论",
+    "人物对话中藏有证词与线索",
+    "伏笔与回收构成阅读快感"
+  ],
+  "chunk_strategy": {
+    "unit": "案件弧线",
+    "method": "按案件或谜题弧线切块；每块提取：线索条目（持有者/内容/指向/解锁条件）、证词（人物视角陈述）、时间线细节",
+    "decision_point_extraction": "对话选项（套话/追问/出示线索）、推理结论提交点（可对可错）"
+  },
+  "design_guidance": {
+    "structure": "对话推进（微 galgame 式）→ 线索收集 → 推理台提交结论 → 分支后果",
+    "branch_policy": "推理结论 2~4 个候选，真结论 1 个；错误结论触发不同后果并允许重试",
+    "inventory": "线索物品栏（≤20 条），出示线索解锁对话选项",
+    "perspective": "可切换询问对象视角（谁在说谎——微环境受玩家行动影响）",
+    "attributes": "嫌疑度/信任度：询问方式影响人物反应",
+    "pacing": "每案件至少 5 条线索、2 次推理提交"
+  },
+  "open_slots": [
+    "案件清单 ← 文本中的案件/谜题",
+    "线索 ← 原文细节（物证/证词/时间线矛盾）",
+    "询问对象 ← 涉案人物",
+    "推理结论 ← 真相 + 常见错误推理",
+    "对话选项 ← 证词中的可追问点"
+  ],
+  "qa_criteria": [
+    "每条线索有来源（持有者）与用途（解锁项）",
+    "真结局所需线索在可达路径上全部可获得",
+    "错误推理有对应后果且不致死路",
+    "线索数量与 inventory.limit 匹配"
+  ],
+  "runtime": {
+    "mode_id": "s3_puzzle",
+    "mode_name": "解谜探案",
+    "mechanics": ["choices", "inventory", "attributes"],
+    "attributes": [],
+    "inventory": {"enabled": true, "limit": 20},
+    "panels": ["status", "choices", "inventory"],
+    "perspectives": [],
+    "achievements": {"enabled": false},
+    "commentary": {"enabled": false},
+    "endings": {"min": 2, "max": 5}
+  }
+}

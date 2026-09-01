@@ -1,0 +1,12 @@
+# 运行时产物（每次生成的小说中间数据）
+runtime/
+# 成品游戏文件夹（打包上传后到期删除）
+games/
+# 打包存档
+archive/
+# 环境与缓存
+.env
+__pycache__/
+*.pyc
+.DS_Store
+node_modules/

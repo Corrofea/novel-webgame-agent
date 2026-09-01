@@ -1,0 +1,48 @@
+{
+  "id": "s4_epic",
+  "name": "多线史诗",
+  "适用": "史诗/多主角平行线/家族史诗/名著（强综合性）",
+  "selection_criteria": [
+    "存在多个平行主角线（玩家均可体验）",
+    "时间跨度大（世代更迭）",
+    "文学地位高，原文写法本身值得品读",
+    "全局主题超越单一人物命运"
+  ],
+  "chunk_strategy": {
+    "unit": "主角线 × 时期（矩阵切块）",
+    "method": "先按主角分线，再按时间轴切段；每段独立摘要；交叉处建立时间线对齐标记",
+    "decision_point_extraction": "每线关键抉择（标注原文选择）；'死亡续写'转折点（一条线的主角死亡后玩家可转生另一线）"
+  },
+  "design_guidance": {
+    "structure": "视角切换器（多主角线）+ 叙述流 + 旁批侧栏",
+    "branch_policy": "每线独立 2~3 个结局 + 全局终局；线间通过'转生/继承'机制相连",
+    "commentary": "旁批模式：关键抉择对比玩家选择与原文选择，附原文深意阐释（联系时代背景/历史）",
+    "attributes": "全局主题参数（如'孤独值'）或按线独立",
+    "pacing": "每线每时期至少 1 个抉择；跨线时间轴同步推进"
+  },
+  "open_slots": [
+    "主角线 ← 文本中的平行主角",
+    "时间轴分段 ← 世代/年代节点",
+    "每线决策点 ← 该主角的关键转折",
+    "旁批点 ← 文本经典抉择处（原文选择 + 阐释）",
+    "全局终局 ← 各线汇合方式"
+  ],
+  "qa_criteria": [
+    "每视角线独立可达结局",
+    "时间线各线之间无矛盾（同一时间点事件相容）",
+    "旁批点覆盖关键抉择且含原文选择",
+    "转生/继承机制无断链"
+  ],
+  "runtime": {
+    "mode_id": "s4_epic",
+    "mode_name": "多线史诗",
+    "mechanics": ["choices", "perspectives", "commentary"],
+    "attributes": [],
+    "inventory": {"enabled": false, "limit": 20},
+    "panels": ["status", "choices", "commentary"],
+    "perspectives": [],
+    "achievements": {"enabled": false},
+    "commentary": {"enabled": true},
+    "endings": {"min": 2, "max": 5}
+  }
+}
