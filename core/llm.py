@@ -70,11 +70,18 @@ class DeepSeekClient:
     def model_for(self, tier: str) -> str:
         return self.reasoner_model if tier == 'reasoner' else self.chat_model
 
-    def _post(self, url: str, payload: dict, deadline=None):
-        """带整体期限的 POST：requests 的 per-op timeout 在服务端半死连接上可能
-        长期不触发（2026-09 实录：qa_review 挂在 reasoner 上 35 分钟零字节），
-        daemon 线程 + 切片式有界等待保证单次请求绝不超过 limit 秒；超时抛 LLMError。
+    def _post(self, url: str, payload: dict, deadline=None) -> tuple:
+        """流式 POST，返回 (status_code, text)。
 
+        text 语义：200 时为累积的 content 全文；非 200 时为错误响应体（截断）。
+        流式（2026-09-02 实录）：两家提供商（DeepSeek/SiliconFlow）在晚间高峰对
+        非流式大请求会静默排队至客户端超时（零字节 60-180s），而流式请求首字节
+        0-1s 即达、持续小包输出——大输出任务走流式是把"服务端排队丢弃"变成
+        "边算边收"的唯一可靠路径。json_object 约束与流式同时使用两家均实测兼容。
+
+        带整体期限：requests 的 per-op timeout 在服务端半死连接上可能长期不触发
+        （2026-09 实录：qa_review 挂在 reasoner 上 35 分钟零字节），daemon 线程 +
+        切片式有界等待保证单次请求绝不超过 limit 秒；超时抛 LLMError。
         切片（2026-09 实录）：本环境（macOS 3.13.14 VM）长定时等待不可靠——
         180s 的 q.get(timeout=180) 与 480s SIGALRM 曾在真实僵死中 50 分钟不触发，
         而 ≤5s 的短等待实测可靠。故把总期限切成 5s 一段的 q.get + 单调钟累计，
@@ -85,14 +92,34 @@ class DeepSeekClient:
 
         def worker():
             try:
-                r = requests.post(url, json=payload, timeout=self.timeout, headers={
-                    'Authorization': f'Bearer {self.api_key}',
-                    'Content-Type': 'application/json',
-                })
+                with requests.post(url, json=payload, stream=True,
+                                   timeout=(10, 60), headers={
+                                       'Authorization': f'Bearer {self.api_key}',
+                                       'Content-Type': 'application/json',
+                                   }) as r:
+                    if r.status_code != 200:
+                        q.put(('ok', (r.status_code, r.text[:2000])))
+                        return
+                    parts = []
+                    # 逐行收字节流再按 utf-8 解码（decode_unicode=True 会随响应头猜
+                    # 字符集，流式响应常缺 charset → 中文乱码；手动解码最稳）
+                    for raw in r.iter_lines(decode_unicode=False):
+                        line = raw.decode('utf-8', errors='ignore').strip()
+                        if not line or not line.startswith('data:'):
+                            continue
+                        data = line[5:].strip()
+                        if data == '[DONE]':
+                            break
+                        try:
+                            chunk = json.loads(data)
+                            c = chunk['choices'][0]['delta'].get('content')
+                            if c:
+                                parts.append(c)
+                        except Exception:  # noqa: BLE001 —— 畸形/无 delta 的 chunk 忽略
+                            pass
+                    q.put(('ok', (r.status_code, ''.join(parts))))
             except BaseException as e:  # noqa: BLE001 —— daemon 线程里全部转交主线程
                 q.put(('err', e))
-            else:
-                q.put(('ok', r))
 
         threading.Thread(target=worker, daemon=True).start()
         t0 = time.monotonic()
@@ -144,7 +171,7 @@ class DeepSeekClient:
             'model': self.model_for(model),
             'messages': messages,
             'temperature': temperature,
-            'stream': False,
+            'stream': True,  # 见 _post docstring：大输出走流式，避免服务端排队丢弃
         }
         if max_tokens:
             base['max_tokens'] = max_tokens
@@ -154,8 +181,10 @@ class DeepSeekClient:
         last_err = None
         empty_streak = 0
         stall = 0  # 连续僵死超时计数：服务端整体故障时重试无意义，2 次即放弃
+        tried = 0  # 真实尝试次数（消息里如实报告，stall 提前退出时不再是"重试 N 次"）
         _t(f'chat_impl enter max_retries={self.max_retries}')
         for attempt in range(self.max_retries + 1):
+            tried = attempt + 1
             _t(f'  attempt {attempt} start')
             payload = dict(base)
             # JSON 模式：chat 档支持 response_format；reasoner 用指令式
@@ -166,7 +195,7 @@ class DeepSeekClient:
             if empty_streak >= 2:
                 payload.pop('response_format', None)
             try:
-                r = self._post(url, payload)
+                status, text = self._post(url, payload)
             except LLMError as e:  # 整体期限超时（僵死）
                 stall += 1
                 last_err = str(e)
@@ -182,25 +211,24 @@ class DeepSeekClient:
                 last_err = str(e)
             else:
                 stall = 0
-                if r.status_code == 200:
-                    data = r.json()
-                    content = data['choices'][0]['message'].get('content', '') or ''
+                if status == 200:
+                    content = text or ''
                     if content.strip():
                         return content
                     empty_streak += 1
                     last_err = ('模型返回空内容（尝试降级: '
                                 + ('去 max_tokens → ' if empty_streak == 1 else '')
                                 + ('去 response_format' if empty_streak >= 2 else '') + '）')
-                elif r.status_code in (429, 500, 502, 503, 504):
-                    last_err = f'HTTP {r.status_code}: {r.text[:200]}'
+                elif status in (429, 500, 502, 503, 504):
+                    last_err = f'HTTP {status}: {text[:200]}'
                 else:
-                    raise LLMError(f'API 错误 HTTP {r.status_code}: {r.text[:300]}')
+                    raise LLMError(f'API 错误 HTTP {status}: {text[:300]}')
             if attempt < self.max_retries and stall < 2:
                 _t(f'  attempt {attempt} 失败退避 sleep '
                    f'{self.retry_delay * (2 ** attempt)}s (stall={stall})')
                 time.sleep(self.retry_delay * (2 ** attempt))
-        _t(f'chat_impl 退出，stall={stall} last_err={str(last_err)[:60]}')
-        raise LLMError(f'请求失败（重试 {self.max_retries} 次后放弃）: {last_err}')
+        _t(f'chat_impl 退出，stall={stall} tried={tried} last_err={str(last_err)[:60]}')
+        raise LLMError(f'请求失败（尝试 {tried} 次后放弃）: {last_err}')
 
     def chat_json(self, messages, model='chat', temperature=0.7, max_tokens=None) -> dict:
         """调用并解析 JSON 输出；解析失败抛 LLMError。"""

@@ -33,11 +33,31 @@ def record_expiry(book_id: str, artifact: str, ttl_minutes: int):
     expiry.write_text(json.dumps(recs, ensure_ascii=False, indent=2), encoding='utf-8')
 
 
-def upload_local(zip_path: Path, ttl_minutes: int):
-    # local 后端：zip 已在 archive/，登记到期即可
+def upload_local(zip_path: Path, ttl_minutes: int, web_dir=None, base_url=''):
+    """local 后端：zip 已在 archive/；配了 web_dir 时拷贝到静态发布目录。
+
+    base_url 非空 → 打印真实 HTTP 下载链接（服务器上由 nginx/caddy 等把
+    web_dir 作为静态站点托管；本地开发无 base_url 时打印文件路径兜底）。
+    """
     record_expiry(zip_path.stem, str(zip_path), ttl_minutes)
-    print(f'[local] 下载链接（30 分钟内有效）: {zip_path.resolve()}')
+    if web_dir:
+        wd = Path(web_dir)
+        wd.mkdir(parents=True, exist_ok=True)
+        dst = wd / zip_path.name
+        shutil.copy2(zip_path, dst)
+        if base_url:
+            link = f'{base_url.rstrip("/")}/{zip_path.name}'
+            print(f'[local→web] 下载链接（{ttl_minutes} 分钟内有效）: {link}')
+        else:
+            link = str(dst)
+            print(f'[local→web] 已发布到静态目录: {dst}')
+            print('[local→web] 提示：config.json 配 upload.base_url 为服务器域名后，'
+                  '即输出真实 HTTP 下载链接')
+    else:
+        link = str(zip_path.resolve())
+        print(f'[local] 下载链接（{ttl_minutes} 分钟内有效）: {link}')
     print(f'[local] 到期时间已登记: runtime/expiry.json（由 cleanup.py 执行删除）')
+    return link
 
 
 def upload_s3(zip_path: Path, ttl_minutes: int):
@@ -69,6 +89,10 @@ def main():
     ap.add_argument('zip_path')
     ap.add_argument('--backend', choices=['local', 's3'], default='local')
     ap.add_argument('--ttl', type=int, default=30)
+    ap.add_argument('--web-dir', default='',
+                    help='发布目录（local 后端：把 zip 拷贝到此静态目录并输出下载链接）')
+    ap.add_argument('--base-url', default='',
+                    help='静态站点域名（如 https://dl.example.com，需以 / 结尾外均可）')
     args = ap.parse_args()
     zip_path = Path(args.zip_path)
     if not zip_path.exists():
@@ -76,7 +100,8 @@ def main():
     if args.backend == 's3':
         upload_s3(zip_path, args.ttl)
     else:
-        upload_local(zip_path, args.ttl)
+        upload_local(zip_path, args.ttl,
+                     web_dir=args.web_dir or None, base_url=args.base_url)
 
 
 if __name__ == '__main__':

@@ -4,10 +4,10 @@
     "api_key_env": "DEEPSEEK_API_KEY",
     "chat_model": "deepseek-v4-flash",
     "reasoner_model": "deepseek-v4-pro",
-    "timeout": 60,
+    "timeout": 180,
     "max_retries": 5,
     "retry_delay": 2,
-    "call_deadline": 360
+    "call_deadline": 480
   },
   "image": {
     "base_url": "https://api.siliconflow.cn/v1",
@@ -53,6 +53,8 @@
     "chunk_chars": 8000,
     "qa_max_rounds": 3,
     "context_budget_chars": 40000,
+    "llm_stage_retries": 2,
+    "llm_stage_retry_delay": 45,
     "mock_mode": false,
     "illustration_styles": {
       "ancient": "ink_wash",
@@ -72,6 +74,8 @@
   "upload": {
     "backend": "local",
     "link_ttl_minutes": 30,
-    "expiry_enabled": true
+    "expiry_enabled": true,
+    "web_dir": "web",
+    "base_url": ""
   }
 }

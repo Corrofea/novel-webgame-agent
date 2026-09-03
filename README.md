@@ -22,6 +22,9 @@ python tools/check_keys.py             # 一键自检两个 key + 列出在售�
 # 正式运行（真实 DeepSeek）
 python agent.py 你的小说.txt
 
+# 带用户要求（最高优先级，配合自动模式选择；不填则完全自动）
+python agent.py 你的小说.txt --prompt "要 galgame 恋爱养成元素，出场角色少而精"
+
 # 无 API key 时用 mock 桩跑通管线（同样的产物结构，用于测试/演示）
 python agent.py tests/fixtures/tiny_novel.txt --mock
 
@@ -38,6 +41,7 @@ python agent.py 你的小说.txt --run-id novel_abc_20260901-1030
 |---|---|
 | `games/<book_id>_<时间戳>/` | 完整游戏文件夹（**游戏库**：一次调用 = 一个唯一文件夹，互不覆盖），`index.html` 直接打开即玩 |
 | `archive/<book_id>_<时间戳>.zip` | 打包存档（zip 内不含 .gitkeep） |
+| `web/<book_id>_<时间戳>.zip` | **发布副本**（配 `upload.base_url` 后即输出真实 HTTP 下载链接；服务器用 nginx/caddy 托管此目录即可） |
 | `runtime/<book_id>_<时间戳>/` | 中间产物：章节/分块/人物卡/world.md/设计brief/QA报告/state.json |
 | `runtime/expiry.json` | 上传到期登记（`python tools/cleanup.py` 自动清理过期产物） |
 
@@ -272,15 +276,22 @@ novel-webgame-agent/
 | `pipeline.chunk_chars` | 分块字符预算（默认 8000） |
 | `pipeline.qa_max_rounds` | QA 修复循环上限（默认 3；每轮含 3 次 ReAct 重试） |
 | `pipeline.illustration_styles` | 主题 → 画风映射（插画提示词） |
-| `upload.backend` | `local`（默认，登记到期）/ `s3`（预签名 URL，需 boto3） |
+| `pipeline.llm_stage_retries` / `llm_stage_retry_delay` | 阶段级 LLM 故障自动重试（默认 2 次 / 间隔 45s；reasoner 档耗尽后自动降级 chat 档续跑） |
+| `upload.backend` | `local`（默认，拷贝到 web_dir 并登记到期）/ `s3`（预签名 URL，需 boto3） |
 | `upload.link_ttl_minutes` | 下载链接有效期（默认 30 分钟） |
+| `upload.web_dir` | 发布目录（默认 `web/`，local 后端把 zip 拷入） |
+| `upload.base_url` | 静态站点域名（如 `https://dl.example.com`；配了才输出真实 HTTP 链接） |
+
+**服务器部署**：`config.json` 里 `upload.backend: "s3"` + `.env` 的 `S3_*`（R2/S3 预签名 URL），
+或 `backend: "local"` + 用 nginx/caddy 把 `web/` 托管成静态站点并配 `upload.base_url`。
+管线跑完即在日志输出下载链接；`python tools/cleanup.py` 按 `runtime/expiry.json` 定期清理过期产物。
 
 ---
 
 ## 六、测试
 
 ```bash
-python tests/run_tests.py            # 全部：107 项
+python tests/run_tests.py            # 全部：142 项
 python tests/run_tests.py contracts  # 契约/ReAct 单元测试（含 extract 校验与模式模板一致性）
 python tests/run_tests.py validate   # 图校验器（黄金数据 + 9 模式破坏用例）
 python tests/run_tests.py pipeline   # 端到端 mock 管线（短篇+长篇+修复循环+游戏库隔离+fate）

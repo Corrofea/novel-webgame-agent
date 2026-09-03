@@ -44,6 +44,10 @@ def main():
             if artifact and artifact.exists():
                 artifact.unlink()
                 print(f'已删除打包文件: {artifact}')
+                web_copy = ROOT / 'web' / artifact.name
+                if web_copy.exists():
+                    web_copy.unlink()
+                    print(f'已删除发布副本: {web_copy}')
         else:
             remaining[book_id] = rec
     if not args.dry_run:

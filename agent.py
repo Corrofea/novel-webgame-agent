@@ -23,6 +23,7 @@ import argparse
 import json
 import subprocess
 import sys
+import time
 from datetime import datetime
 from pathlib import Path
 
@@ -194,7 +195,7 @@ def _envelope_validator(game_dir: Path, full_check: bool):
 
 class NovelAgent:
     def __init__(self, novel_path: str, config: dict, mock: bool = False, resume: bool = False,
-                 mock_dirs: list = None, run_id: str = None):
+                 mock_dirs: list = None, run_id: str = None, user_prompt: str = ''):
         self.novel_path = Path(novel_path)
         if not self.novel_path.exists():
             raise SystemExit(f'小说文件不存在: {self.novel_path}')
@@ -215,6 +216,9 @@ class NovelAgent:
         self.game_dir = ROOT / 'games' / self.run_id
         self.state_path = self.work_dir / 'state.json'
         self.state = self._load_state()
+        # 用户提示词：随 state 持久化（resume 后各阶段任务仍带用户要求）
+        if user_prompt and user_prompt.strip():
+            self.state['user_prompt'] = user_prompt.strip()
         default_fixtures = ROOT / 'tests' / 'fixtures' / 'mock_data'
         # 自定义 fixture 目录优先（可覆盖同名的默认桩）
         self.llm = MockLLM(self._mock_dirs + [default_fixtures]) if mock else \
@@ -265,11 +269,18 @@ class NovelAgent:
         return self.resume and stage in self.state['done']
 
     # ---- 工具 ----
-    def _run(self, *cmd):
+    def _run(self, *cmd, echo=False):
+        """执行子命令；echo=True 时把子进程 stdout 回显到主日志。
+
+        服务器模式下 pipeline 的"交付物=下载链接"，upload.py 的链接输出
+        必须在主日志可见（默认静默是为了旧阶段工具不刷屏）。
+        """
         r = subprocess.run([sys.executable, *[str(c) for c in cmd]],
                            capture_output=True, text=True)
         if r.returncode != 0:
             raise RuntimeError(f'命令失败 {" ".join(cmd)}: {r.stderr[:500]}')
+        if echo and r.stdout.strip():
+            print(r.stdout.strip(), flush=True)
         return r.stdout
 
     def _llm_stage(self, stage: str, worker_name: str, task: str,
@@ -283,6 +294,20 @@ class NovelAgent:
             if model != 'chat':
                 print('  （深模型校验失败，可能输出格式问题；考虑降级重试或人工介入）')
         return result
+
+    def _user_req_block(self) -> str:
+        """用户提示词 → 任务注入块（无提示词返回空串）。
+
+        语义：用户要求优先于自动判断（模式/主题/玩法冲突时以满足用户为准），
+        由 detect 说明取舍、design/generate 落实到玩法与场景。
+        """
+        p = (self.state.get('user_prompt') or '').strip()
+        if not p:
+            return ''
+        return ('\n\n### 用户要求（最高优先级，高于你的自动判断）\n'
+                f'{p}\n'
+                '冲突时以满足用户要求为准，并在 rationale 里说明取舍；'
+                '输出结构/JSON 字段约束不变。')
 
     def _design_validator(self):
         """design 校验器：基础 JSON + 必需字段 + scene_blueprint 规模上限。
@@ -350,12 +375,55 @@ class NovelAgent:
                 continue
             print(f'\n[执行] {stage}')
             fn = getattr(self, f'stage_{stage}')
-            try:
-                fn()
-            except LLMError as e:
-                # 阶段级 LLM 故障不留下裸 traceback：checkpoint 未写 → resume 会从本阶段续
-                raise RuntimeError(f'{stage} 阶段 LLM 请求失败（可 --resume 续跑，'
-                                   f'已完成阶段不会重做）: {e}') from None
+            # 阶段级 LLM 故障自动重试（2026-09 实录：DeepSeek 存在分钟级抖动窗口，
+            # 同一请求 60s 僵死两次、5 分钟后 27s 成功；stall 防护已保证单次有界，
+            # 这里再等过抖动窗口，避免一次窗口杀掉整个 run）
+            pipe_cfg = self.config.get('pipeline', {})
+            max_stage_retries = int(pipe_cfg.get('llm_stage_retries', 2))
+            stage_retry_delay = int(pipe_cfg.get('llm_stage_retry_delay', 45))
+            # 档位尝试顺序：reasoner 档整窗口宕机（实录可达数小时）时自动降级 chat
+            # 继续，保证管线不因深模型服务故障中断（质量换可用性，print 明示）
+            workers_cfg = self.config['workers']
+            default_tier = workers_cfg.get(stage, {}).get('model', 'chat')
+            # 降级决定持久化到 state：resume 后直接沿用，避免重打 reasoner 白等
+            overrides = self.state.get('tier_overrides') or {}
+            if stage in overrides and default_tier != overrides[stage]:
+                print(f'（沿用上次降级：{stage} → {overrides[stage]} 档）')
+                workers_cfg[stage]['model'] = overrides[stage]
+                default_tier = overrides[stage]
+            tiers = [default_tier] + (['chat'] if default_tier == 'reasoner' else [])
+            last_llm_err = None
+            for tier in tiers:
+                if tier != default_tier:
+                    print(f'⚠ {stage}：reasoner 档持续不可用，自动降级 chat 档继续'
+                          '（质量换可用性，校验与 QA 仍会兜底）', flush=True)
+                    workers_cfg[stage]['model'] = tier
+                    # 持久化降级：中断后 resume 直接沿用（state 每次 checkpoint 落盘）
+                    ov = dict(self.state.get('tier_overrides') or {})
+                    ov[stage] = tier
+                    self.state['tier_overrides'] = ov
+                    write_json(self.state_path, self.state)
+                for s_attempt in range(max_stage_retries + 1):
+                    try:
+                        fn()
+                        last_llm_err = None
+                        break
+                    except LLMError as e:
+                        last_llm_err = e
+                        if s_attempt >= max_stage_retries:
+                            break
+                        print(f'⏳ {stage} 阶段 LLM 请求失败（第 {s_attempt + 1}/'
+                              f'{max_stage_retries + 1} 次）：{e}\n'
+                              f'   服务端抖动常见数分钟内自愈，{stage_retry_delay}s 后自动重试…',
+                              flush=True)
+                        time.sleep(stage_retry_delay)
+                if last_llm_err is None:
+                    break
+            if last_llm_err is not None:
+                # checkpoint 未写 → resume 会从本阶段续
+                raise RuntimeError(f'{stage} 阶段 LLM 请求失败（已自动重试 '
+                                   f'{max_stage_retries} 次；可 --resume 续跑，'
+                                   f'已完成阶段不会重做）: {last_llm_err}') from None
             self._checkpoint(stage)
             print(f'[完成] {stage}')
 
@@ -379,6 +447,7 @@ class NovelAgent:
         head = clamp_context('\n\n'.join(
             c['text'] for c in chapters['chapters'][:6]), 8000)
         task = ('[STAGE:detect]\n以下是小说开头（供类型分析）：\n\n' + head +
+                self._user_req_block() +
                 '\n\n请按 detect.md 的判断流程输出 JSON。')
         result = self._llm_stage('detect', 'detect', task,
                                  json_validator(['mode_id', 'theme_id', 'chunk_strategy']))
@@ -515,7 +584,8 @@ class NovelAgent:
             task += (f'文本解构素材（按此设计场景蓝图——数量按素材量缩放见 design.md，'
                      f'宁少勿滥，严禁为凑场景凭空编造主线）：\n'
                      f'{clamp_context(json.dumps(extract_data, ensure_ascii=False, indent=1), 20000)}\n\n')
-        task += '按 design.md 输出设计 brief（严格 JSON）。'
+        task += self._user_req_block()
+        task += '\n按 design.md 输出设计 brief（严格 JSON）。'
         result = self._llm_stage('design', 'design', task,
                                  self._design_validator())
         if not result.ok:
@@ -549,7 +619,8 @@ class NovelAgent:
                     + f'人物卡：\n{json.dumps(chars, ensure_ascii=False, indent=1)}\n'
                     + f'设计 brief：\n{json.dumps(brief, ensure_ascii=False, indent=1)}\n'
                     + f'本次生成第 {idx + 1}/{len(batches)} 批，场景 id：{batch_ids}\n'
-                    + '输出格式：{"patch": {"game": {...}, "mode": {...}, "characters": {...}, '
+                    + self._user_req_block()
+                    + '\n输出格式：{"patch": {"game": {...}, "mode": {...}, "characters": {...}, '
                       '"scenes": {批量场景节点}}}——顶层禁止 theme 字段。'
                     + ('这是最后一批，场景必须整体完整可达。' if last
                        else '非最后一批：只输出本批 scenes 与完整顶层字段，其余照常。'))
@@ -793,10 +864,17 @@ class NovelAgent:
         ttl = self.config.get('upload', {}).get('link_ttl_minutes', 30)
         zip_path = ROOT / 'archive' / f'{self.run_id}.zip'
         if backend == 's3':
-            self._run(ROOT / 'tools' / 'upload.py', zip_path, '--backend', 's3', '--ttl', str(ttl))
+            self._run(ROOT / 'tools' / 'upload.py', zip_path, '--backend', 's3',
+                      '--ttl', str(ttl), echo=True)
         else:
-            self._run(ROOT / 'tools' / 'upload.py', zip_path, '--backend', 'local', '--ttl', str(ttl))
-        print('（链接到期后可用 tools/cleanup.py 清理本地产物）')
+            up = self.config.get('upload', {})
+            web_dir = str(ROOT / up.get('web_dir', 'web')) if up.get('web_dir') else ''
+            self._run(ROOT / 'tools' / 'upload.py', zip_path, '--backend', 'local',
+                      '--ttl', str(ttl),
+                      *(('--web-dir', web_dir) if web_dir else ()),
+                      *(('--base-url', up['base_url']) if up.get('base_url') else ()),
+                      echo=True)
+        print('（链接到期后由 tools/cleanup.py 清理本地产物）')
 
 
 # ---------------------------------------------------------------- CLI
@@ -811,13 +889,17 @@ def main():
     ap.add_argument('--resume', action='store_true',
                     help='从断点继续（自动定位该书最近一次运行）')
     ap.add_argument('--run-id', help='运行 id（默认 <book_id>_<时间戳>；resume 时可用它指定具体某次运行）')
+    ap.add_argument('--prompt', default='',
+                    help='用户对游戏的额外要求（最高优先级，配合自动方案；'
+                         '不填则完全按自动选择执行）')
     args = ap.parse_args()
 
     load_dotenv()  # 读取项目根目录 .env（DEEPSEEK_API_KEY / SILICONFLOW_API_KEY 等）
     config = read_json(args.config)
     try:
         agent = NovelAgent(args.novel, config, mock=args.mock, resume=args.resume,
-                           mock_dirs=args.mock_dir, run_id=args.run_id)
+                           mock_dirs=args.mock_dir, run_id=args.run_id,
+                           user_prompt=args.prompt)
     except LLMError as e:
         print(f'配置错误: {e}\n（离线测试请加 --mock）')
         sys.exit(1)
