@@ -1,18 +1,10 @@
-/* theme.js —— 视觉风格（从 templates/themes/ 选取一份生成） */
+/* theme.js —— 视觉风格开关（schema 权威）
+ *
+ * name 必须是 templates/themes/ 下的一个主题 id（12 选 1），由 detect 阶段
+ * 决定、game_init 实例化时写入。配色与质感全部由 engine/theme.css 的
+ * body.style-<name> 块决定，engine.js boot() 挂 class 即生效。
+ * 禁止包含 colors/fonts/cover 字段（旧版 LLM 自创色漂移的源头，QA 会告警）。
+ */
 window.THEME = {
-  "name": "ancient",              // 主题 id
-  "colors": {
-    "bg": "#F8F2E7",
-    "panel": "#F1E7D3",
-    "accent": "#8B0000",
-    "accent_light": "#A53F3F",
-    "text": "#32281E",
-    "sub": "#6B5544",
-    "border": "#B8A080"
-  },
-  "fonts": {
-    "title": "STKaiti, KaiTi, serif",
-    "body": "STSong, SimSun, serif"
-  },
-  "cover": { "title_color": "#8B0000", "ornament": "seal" }
+  "name": "ancient"
 };

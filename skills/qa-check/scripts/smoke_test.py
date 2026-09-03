@@ -34,10 +34,17 @@ def run_once(scenes, mode, entry, rng):
             state["result"] = "missing"; state["msg"] = f"场景不存在 {state['scene']}"; return state
         if node.get("ending"):
             state["result"] = "ending"; state["msg"] = node["ending"].get("title", ""); return state
-        if node.get("auto") and _passes(node["auto"].get("requires"), state, mode):
+        if node.get("auto") and node["auto"].get("goto") \
+                and _passes(node["auto"].get("requires"), state, mode):
             state["scene"] = node["auto"]["goto"]
             if state["visited"].count(state["scene"]) > 3:
                 state["result"] = "loop"; state["msg"] = f"auto 链循环 @{state['scene']}"; return state
+            continue
+        if node.get("riddle") and node["riddle"].get("goto"):
+            # riddle 节点：模拟视为必解（答案唯一），直接推进到解出后的去向
+            state["scene"] = node["riddle"]["goto"]
+            if state["visited"].count(state["scene"]) > 3:
+                state["result"] = "loop"; state["msg"] = f"riddle 链循环 @{state['scene']}"; return state
             continue
         choices = [c for c in node.get("choices", []) if _passes(c.get("requires"), state, mode)]
         if not choices:
@@ -109,10 +116,16 @@ def main():
     mode = data['mode.js']
     entry = data['game.js']['entry']
     rng = random.Random(args.seed)
+    # 剧情起点：入口；fate 模式入口是抽取锚点（空壳），起点为各转生身份起点
+    fate_cfg = mode.get('fate') or {}
+    starts = [entry]
+    if fate_cfg.get('enabled'):
+        starts = [d['start_scene'] for d in fate_cfg.get('draw_pool', [])
+                  if d.get('start_scene')] or starts
 
     # 1. 确定性全覆盖游走：BFS 模拟可达性（宽松：requires 全部视为可过）
     all_scenes = set(scenes.keys())
-    q = deque([entry]); reached = set()
+    q = deque(starts); reached = set()
     while q:
         cur = q.popleft()
         if cur in reached: continue
@@ -122,10 +135,14 @@ def main():
             if ch.get("goto") and ch["goto"] not in reached: q.append(ch["goto"])
         if node.get("auto") and node["auto"].get("goto") and node["auto"]["goto"] not in reached:
             q.append(node["auto"]["goto"])
+        if node.get("riddle") and node["riddle"].get("goto") and node["riddle"]["goto"] not in reached:
+            q.append(node["riddle"]["goto"])
     unreachable = all_scenes - reached
+    if fate_cfg.get('enabled') and entry in unreachable:
+        unreachable.discard(entry)  # fate 入口是抽取锚点（空壳），玩家不经过
 
-    # 2. 随机游玩
-    results = [run_once(scenes, mode, entry, rng) for _ in range(args.runs)]
+    # 2. 随机游玩（起点随机：模拟转生抽取）
+    results = [run_once(scenes, mode, rng.choice(starts), rng) for _ in range(args.runs)]
     endings = [r for r in results if r["result"] == "ending"]
     deadlocks = [r for r in results if r["result"] == "deadlock"]
     loops = [r for r in results if r["result"] == "loop"]

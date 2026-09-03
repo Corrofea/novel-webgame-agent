@@ -57,6 +57,13 @@ def detect_worker() -> dict:
     )
 
 
+def extract_worker() -> dict:
+    return make_worker(
+        '文本解构', 'text-processing', 'chat',
+        extra_framing='\n\n' + load_prompt(SKILLS / 'text-processing' / 'prompts' / 'extract.md'),
+    )
+
+
 def summarize_worker() -> dict:
     return make_worker(
         '分块摘要', 'world-bible', 'chat',
@@ -105,6 +112,7 @@ def qa_review_worker() -> dict:
 
 WORKERS = {
     'detect': detect_worker,
+    'extract': extract_worker,
     'summarize': summarize_worker,
     'style': style_worker,
     'characters': characters_worker,

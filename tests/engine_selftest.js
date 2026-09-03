@@ -45,9 +45,12 @@ const localStorageShim = {
 };
 
 const appEl = new El('div');
+const bodyClasses = [];
+const setProps = [];
 const documentShim = {
   readyState: 'complete',
-  documentElement: { style: { setProperty() {} } },
+  documentElement: { style: { setProperty(k, v) { setProps.push([k, v]); } } },
+  body: { classList: { add(c) { bodyClasses.push(c); }, remove() {} } },
   getElementById(id) { return id === 'app' ? appEl : null; },
   createElement(tag) { return new El(tag); },
   addEventListener() {},
@@ -97,6 +100,38 @@ const logEl = findLog(appEl);
 if (!logEl) { console.error('未找到自检输出（引擎可能抛错或未启动）'); process.exit(1); }
 console.log('引擎自检: ' + logEl.textContent);
 if (logEl.textContent.indexOf('无运行时错误') >= 0) {
+  // body 应带模式类（CSS 排版钩子）
+  const expectClass = 'mode-' + (windowObj.MODE.mode_id || 'default');
+  if (bodyClasses.indexOf(expectClass) < 0) {
+    console.error(`body 缺少模式类 ${expectClass}（实际: ${bodyClasses.join(',')}）`);
+    process.exit(1);
+  }
+  // 视觉风格类（theme 2.0）：theme.js 的 colors 非空 = 旧版遗留 → 走 CSS 变量
+  // 注入（不挂 style 类，documentElement setProperty 有值）；colors 空 = 新产物
+  // → body 挂 style-<name>（配色权威在 theme.css），注入路径必须为空
+  const theme = windowObj.THEME || {};
+  const legacy = theme.colors && Object.keys(theme.colors).length > 0;
+  const styleCls = bodyClasses.filter(c => c.indexOf('style-') === 0);
+  if (legacy) {
+    if (styleCls.length) {
+      console.error(`旧版 theme.js（colors 非空）不应挂 style 类（实际: ${bodyClasses.join(',')}）`);
+      process.exit(1);
+    }
+    if (!setProps.some(p => p[0] === '--accent')) {
+      console.error('旧版 theme.js 应走 CSS 变量注入（缺少 --accent setProperty）');
+      process.exit(1);
+    }
+  } else {
+    const expectStyle = 'style-' + (theme.name || 'default');
+    if (bodyClasses.indexOf(expectStyle) < 0) {
+      console.error(`body 缺少风格类 ${expectStyle}（实际: ${bodyClasses.join(',')}）`);
+      process.exit(1);
+    }
+    if (setProps.length) {
+      console.error(`新产物不应走变量注入路径（实际 ${setProps.length} 次 setProperty）`);
+      process.exit(1);
+    }
+  }
   console.log('ENGINE_SELFTEST_OK');
   process.exit(0);
 } else {

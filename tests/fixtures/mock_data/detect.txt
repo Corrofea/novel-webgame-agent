@@ -1,1 +1,1 @@
-{"mode_id": "g1_narrative", "theme_id": "modern", "chunk_strategy": "按章节分块", "genre": "现代都市", "rationale": "单线叙事、人物关系简单、以情感发展为线索，适合叙事冒险模式"}
+{"mode_id": "classic", "theme_id": "modern", "chunk_strategy": "按章节分块", "genre": "现代都市", "rationale": "单线叙事、人物关系简单、以情感发展为线索，适合经典叙事模式"}

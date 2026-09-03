@@ -1,0 +1,63 @@
+{
+  "id": "riddle",
+  "name": "字谜问答",
+  "适用": "以文字谜题为关卡核心：谜面+答案逐字遮罩，玩家输入文字逐步揭示，填出完整名字/章节名=通关（参考 炒饭小测验/图寻）",
+  "selection_criteria": [
+    "文本中有可做谜面的标志性元素：人物名/地点名/章节名/关键道具名",
+    "玩法核心是'猜'（猜名字、猜章节名），不是选择分支",
+    "答案有唯一确定性（专有名词）",
+    "适合章节回目式结构（猜章节名）或人物志式结构（猜人物）"
+  ],
+  "chunk_strategy": {
+    "unit": "按谜题组/人物志分块",
+    "method": "每个谜题单元独立分块；保留谜面来源的原文（绰号、判词、出场描写）",
+    "decision_point_extraction": "从每块提取：可作谜面的人物线索（外貌/绰号/判词/事迹）、章节名与内容的对应"
+  },
+  "extraction": {
+    "task": "把本块文本解构为谜题素材：targets（可作谜底的对象：kind 人物/地点/章节名/道具/name 全名（含姓，2~8 字）/aliases 别名绰号）、riddle_materials（谜面素材：target 指向哪个 target/kind 外貌描写/绰号/判词/事迹/原文 quote（≤60 字，谜面来源）/hints 分层提示（第 1 级身份类别、第 2 级原文线索、第 3 级首字））、clue_scenes（可作线索场景的桥段：context/提供什么帮助/涉及人物）、chapter_riddles（可猜的回目/章节名：title 原句/内容概括/提示词）。全部引用原文；每个 target 至少配 1 条 riddle_material。",
+    "schema": {
+      "items": [
+        {"kind": "target", "name": "林黛玉", "aliases": ["颦儿"], "category": "人物"},
+        {"kind": "material", "target": "林黛玉", "kind": "判词", "quote": "玉带林中挂，金簪雪里埋", "hints": ["红楼十二钗之一", "泪尽而逝", "首字：林"]},
+        {"kind": "clue_scene", "context": "贾母问众人谁识得此诗", "help": "可获得第 2 级提示", "characters": ["贾母", "宝玉"]},
+        {"kind": "chapter_riddle", "title": "慧紫鹃情辞试忙玉", "summary": "紫鹃试探宝玉对黛玉的心意", "hint": "此回以丫鬟试探情意"}
+      ]
+    },
+    "uses": "design 阶段据此设计：targets→riddle 节点答案（question/answer 逐字遮罩）、materials→谜面与 hints（1~3 个分层提示）、clue_scenes→线索场景（非必答的求助节点）、chapter_riddles→章节名谜题（回目原句）"
+  },
+  "design_guidance": {
+    "structure": "入口(序) → 谜题 1 → 谜题 2 → … → 最终谜（终章名/主角名）→ 通关结局",
+    "riddle_policy": "每关一个 riddle 节点：question=谜面（正常显示），answer=答案（逐字方块遮罩），goto=解出后去向；每关 1~3 个提示",
+    "hint_design": "提示逐级给出：第 1 级给出身份类别（'红楼女子'），第 2 级给出原文线索（'泪尽而逝'），第 3 级给出首字",
+    "answer_sources": "人物名（全名，含姓）、章节名（回目原句）、道具名；答案 2~8 字",
+    "affection": "不启用；pacing 由谜题难度曲线驱动",
+    "pacing": "3~6 个谜题；谜面越来越难；每题可向 NPC 线索场景（非必答场景）求助",
+    "ending": "全部解出 → 通关；也可以有'放弃'分支结局"
+  },
+  "open_slots": [
+    "谜题 ← 人物卡（人物名/别名/判词）+ 章节结构（章节名）",
+    "谜面 ← 原文中人物出场描写/绰号/判词/回目",
+    "提示 ← 原文线索（分层级）",
+    "线索场景 ← 小说中可提供帮助的桥段",
+    "结局 ← 通关结局 + 放弃/未答出结局"
+  ],
+  "qa_criteria": [
+    "riddle 节点必须含 question/answer/goto；answer 非空且 2~8 字",
+    "riddle.goto 指向存在的节点；全部 riddle 可解（answer 与 question 呼应）",
+    "结局数量 2~3 与 endings 配置一致；终点（通关）结局可达",
+    "非 riddle 节点按常规图规则检查（可达/无死路）"
+  ],
+  "runtime": {
+    "mode_id": "riddle",
+    "mode_name": "字谜问答",
+    "mechanics": ["riddle"],
+    "attributes": [],
+    "inventory": {"enabled": false, "limit": 20},
+    "panels": ["choices"],
+    "perspectives": [],
+    "achievements": {"enabled": false},
+    "commentary": {"enabled": false},
+    "riddle": {"enabled": true},
+    "endings": {"min": 1, "max": 3}
+  }
+}

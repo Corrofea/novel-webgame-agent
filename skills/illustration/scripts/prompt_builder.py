@@ -8,6 +8,7 @@
 """
 import argparse
 import json
+import re
 import sys
 from pathlib import Path
 
@@ -15,17 +16,22 @@ STYLE_REFS = Path(__file__).resolve().parent.parent / 'templates' / 'style_refs.
 
 SIZE = {'portrait': '9:16', 'bg': '16:9', 'cg': '16:9'}
 HEAD = {'portrait': 'character portrait of', 'bg': 'scene background of', 'cg': 'cinematic scene of'}
+# {subjects} = name/desc 去空拼接；角色名与描述可含中文（Kolors 双语支持），
+# 描述过长截断避免稀释画风前缀
 BODY = {
-    'portrait': '{name}, {desc}, {role}, full body, centered composition, plain background',
-    'bg': '{name}, {desc}, wide shot, no characters, no text',
-    'cg': '{name}, {desc}, dynamic composition, emotionally expressive',
+    'portrait': '{subjects}, full body, centered composition, plain background',
+    'bg': '{subjects}, wide shot, no characters, no text',
+    'cg': '{subjects}, cinematic composition, emotionally expressive',
 }
+DESC_MAX = 160
 
 
 def build_prompt(kind, name, desc, style_id):
     refs = json.loads(STYLE_REFS.read_text(encoding='utf-8'))
     style = next((s for s in refs['styles'] if s['id'] == style_id), refs['styles'][0])
-    body = BODY[kind].format(name=name, desc=desc, role='')
+    parts = [x for x in (name, desc) if x and str(x).strip()]
+    subjects = re.sub(r'\s+', ' ', '，'.join(str(x).strip() for x in parts)).strip()[:DESC_MAX]
+    body = BODY[kind].format(subjects=subjects)
     prompt = (f"{style['prompt_prefix']}, {HEAD[kind]} {body}, "
               f"{SIZE[kind]}, high quality, highly detailed")
     return {
@@ -40,7 +46,7 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument('--kind', required=True, choices=['portrait', 'bg', 'cg'])
     ap.add_argument('--name', required=True, help='角色名/场景名')
-    ap.add_argument('--desc', required=True, help='中文描述')
+    ap.add_argument('--desc', default='', help='中文描述')
     ap.add_argument('--style', default='flat_modern')
     ap.add_argument('--out', default='.', help='输出目录（提示词 .txt）')
     args = ap.parse_args()

@@ -1,0 +1,67 @@
+{
+  "id": "survival",
+  "name": "生存试炼",
+  "适用": "野外生存/绝境求生/探险穿越题材：玩家自分配初始数值 → 多轮决策影响生命值 → 归零失败 / 抵达终点通关（参考 穿越鳌太线）",
+  "selection_criteria": [
+    "核心张力是生存压力（食物/体力/保暖/健康等资源管理）",
+    "情节是一段连续行程/试炼（从起点到终点），环境是关键角色",
+    "每次抉择有代价（资源消耗）与收益（前进/发现）",
+    "存在明确的失败条件（死亡）与成功条件（抵达目的地）"
+  ],
+  "chunk_strategy": {
+    "unit": "按行程阶段/关卡段分块（营地→山口→垭口→终点…）",
+    "method": "每段独立分块；段间传递：物资状态、身体状态、风险提示",
+    "decision_point_extraction": "从每块提取：风险抉择（冒险前进/稳妥休整）、资源分配、天气地形事件"
+  },
+  "extraction": {
+    "task": "把本块文本解构为生存素材：legs（行程段：from/to/terrain 地形/weather 天气/risk 风险点/hazards 具体威胁）、resources（文本中实际涉及的生存资源维度：name/原文提及的获取或消耗方式）、risky_choices（风险抉择：context/risky 冒险选项与其代价/safe 稳妥选项与其代价/possible_fail 失败后果）、near_death（绝境/死亡风险素材：context/odds 危险程度/outcome 若失手的结果）。全部引用原文。",
+    "schema": {
+      "items": [
+        {"kind": "leg", "from": "山脚营地", "to": "乱石岗", "terrain": "碎石陡坡", "weather": "雨后湿滑", "risk": "落石与失足", "hazards": ["松动岩体", "滑坡痕迹"]},
+        {"kind": "resource", "name": "食物", "mention": "出发前只够三天的干粮，翻过垭口后几乎耗尽"},
+        {"kind": "risky_choice", "context": "夜渡冰河", "risky": "涉水过河（省半天路程，但可能失温）", "safe": "绕行上游桥（多耗一天食物）", "possible_fail": "失温导致体力大减"},
+        {"kind": "near_death", "context": "雪崩边缘", "odds": "极高", "outcome": "被埋后侥幸爬出，重伤"}
+      ]
+    },
+    "uses": "design 阶段据此设计：legs→行程 N 段（每段 2~4 个决策场景）、resources→attributes 资源类属性（食物/体力/保暖等）、risky_choices→一稳妥一冒险的选项对（effects 增减生命值与资源）、near_death→死亡分支素材（bad 结局）"
+  },
+  "design_guidance": {
+    "structure": "入口(营地) → 行程 N 段（每段 2~4 个决策场景）→ 终点通关节点 + 沿途多个死亡分支",
+    "branch_policy": "每节点 2~3 个选项：通常一稳妥一冒险；effects 同时增减生命值与资源",
+    "life_management": "hp_attr 为生命值属性（max 100）；死亡阈值 0；多轮决策持续增减，归零即败",
+    "attributes": "生命值(hp) + 1~4 个资源属性（食物/体力/保暖/状态），互相牵制（消耗体力换食物等）",
+    "allocation": "mode.survival.alloc_points 给初始点数（建议 20~40），alloc_attrs 列出可分配属性（生命值以外的资源类）",
+    "death_scene": "必须设计 1 个死亡结局节点（mode.survival.death_scene 指向它），引擎在 hp≤0 时自动跳转",
+    "pacing": "每段至少 1 个决策；开局第一个决策在 1~2 个场景内出现；死亡风险从第 2 段开始上升",
+    "ending": "到达终点 = good 结局；中途资源耗尽/决策失误 = 各类 bad 结局"
+  },
+  "open_slots": [
+    "行程分段 ← 按小说的事件序列划分（起点→终点）",
+    "资源系统 ← 从原文可考的物资/身体状态提炼",
+    "风险决策 ← 原文中的险情/抉择（走捷径还是绕路等）",
+    "死亡分支 ← 原文章节中失败的代价（合理扩展为结局）",
+    "通关结局 ← 抵达小说中目的地/终点"
+  ],
+  "qa_criteria": [
+    "所有选项有 goto 且目标存在",
+    "mode.survival.death_scene 存在且是 bad 结局节点（死亡路径）",
+    "alloc_attrs 全部存在于 attributes；hp_attr 存在于 attributes",
+    "从入口存在至少一条可达终点的路径（通关可能）",
+    "终点为 good 结局；结局数量 2~5 与 endings 配置一致",
+    "冒烟模拟中 hp 归零路径存在（死亡不是纯装饰）"
+  ],
+  "runtime": {
+    "mode_id": "survival",
+    "mode_name": "生存试炼",
+    "mechanics": ["choices", "survival"],
+    "attributes": [],
+    "inventory": {"enabled": true, "limit": 20},
+    "panels": ["status", "choices"],
+    "perspectives": [],
+    "achievements": {"enabled": false},
+    "commentary": {"enabled": false},
+    "survival": {"enabled": true, "alloc_points": 30, "alloc_attrs": [],
+                 "hp_attr": "hp", "death_threshold": 0, "death_scene": ""},
+    "endings": {"min": 2, "max": 5}
+  }
+}

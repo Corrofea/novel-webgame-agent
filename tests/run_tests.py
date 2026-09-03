@@ -17,6 +17,8 @@ MODULES = {
     'contracts': 'test_contracts',
     'validate': 'test_validate',
     'pipeline': 'test_pipeline',
+    'theme': 'test_theme',
+    'image': 'test_image',
 }
 
 

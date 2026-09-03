@@ -1,5 +1,5 @@
 {
-  "id": "g2_strategy",
+  "id": "strategy",
   "name": "策略模拟",
   "适用": "历史文献/编年史/群像长卷/数据密集文本（强信息量）",
   "selection_criteria": [
@@ -12,6 +12,18 @@
     "unit": "时期/事件阶段",
     "method": "按历史时期或重大事件切块；每块提取结构化数据：势力表（成员/实力/关系）、事件表（时间/参与者/后果）、资源变化",
     "decision_point_extraction": "从每块提取：战略抉择（扩张/结盟/征伐/外交）、资源分配决策"
+  },
+  "extraction": {
+    "task": "把本块文本解构为：periods（本块覆盖的历史时期/阶段列表：name/起止时间/一句话概括）、factions（出现的势力/阵营表：name/成员/实力描述/与相关势力的关系）、events（重大事件表：name/时间/参与者/后果/涉及势力）、resources（文本中实际提及的可量化维度：name/现状/变化）。全部只提取原文实际内容；无信息的字段用空数组或空字符串。",
+    "schema": {
+      "items": [
+        {"kind": "period", "name": "群雄割据初期", "time": "190-200年", "summary": "诸侯混战，局势未明"},
+        {"kind": "faction", "name": "曹操集团", "members": ["曹操", "夏侯惇"], "power": "占据兖州，兵精粮足", "relations": "与袁绍集团敌对"},
+        {"kind": "event", "name": "官渡之战", "time": "200年", "participants": ["曹操", "袁绍"], "consequence": "袁绍败亡，北方统一在望", "factions": ["曹操集团", "袁绍集团"]},
+        {"kind": "resource", "name": "兵力", "status": "此消彼长", "change": "官渡战后大幅增长"}
+      ]
+    },
+    "uses": "design 阶段据此设计：时期→回合/事件卡片、势力表→战略博弈对象、事件→卡片内容、资源→attributes 数值维度（3~6 个）"
   },
   "design_guidance": {
     "structure": "时间线推进器（每回合一个时期）+ 事件卡片 + 策略面板",
@@ -35,7 +47,7 @@
     "成就条件可达成"
   ],
   "runtime": {
-    "mode_id": "g2_strategy",
+    "mode_id": "strategy",
     "mode_name": "策略模拟",
     "mechanics": ["choices", "attributes", "achievements"],
     "attributes": [],

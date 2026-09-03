@@ -8,11 +8,13 @@
 
 ## A. 存档与进度（最高优先级：直接丢玩家进度）
 
-### Bug#1 周目重置没有清空全部存档 key
+### Bug#1 周目重置没有清空全部存档 key（但"开始新游戏"不得清结局收集）
 **症状**：玩家"再来一次"后，旧周目的结局收集、成就、旗标仍残留，或多周目数值串档。
 **根因**：重置只删了主存档 key，没删带同一前缀的 `_meta`/成就等派生 key。
-**自检**：引擎 `clearSave()` 必须遍历 `localStorage`，删除所有以 `save_key` 开头的 key
-（本管线引擎已实现）；修复时不得绕过引擎自己往 localStorage 里写别的 key。
+**自检**：本管线引擎区分两个入口——`clearSave()` 只删主存档 key（"开始游戏"/"再来一次"，
+**保留结局收集**，结局要跨周目累积）；`clearAllData()` 遍历删除所有以 `save_key` 开头的
+key（"重置游戏"按钮用，含 meta）。**注意**：曾把"开始游戏"也接在按前缀清空的逻辑上，
+导致每开一局结局收集就被清空（见 Bug#18）；修复时不得再让普通重开清掉 meta。
 
 ### Bug#2 进度有多个数据源，改动一处另一处不同步
 **症状**：改存档逻辑后属性显示正确但结局收集丢失，或反之。
@@ -25,6 +27,23 @@ localStorage 只是它的序列化；渲染层只读 state，绝不反向写。
 **根因**：入库前没有查重（按结局 title 判等），或计数与入库解耦后重复执行。
 **自检**：`endGame` 先 `meta.endings.indexOf(title) < 0` 再 push；playthrough 每次结局
 +1 且只加一次。QA 冒烟报告里的 `ending_titles` 应无重复。
+
+### Bug#18 结局收集不记录 / 封面计数永远是 0（2026-09 实录）
+**症状**：玩完一局回到封面，"已解锁结局"仍是 0/5；翻遍所有生成的游戏都一样。
+**根因**（四个叠加，全部在共享引擎 engine/engine.js，故所有游戏同病）：
+1. `clearSave()` 按 `save_key` 前缀清空所有 key，"开始游戏"调它 → **每开一局就把
+   `_meta_v1`（结局收集）删了**；
+2. 封面"结局收集 (0/5)"按钮文本在 `buildCover()` 启动时渲染一次，`show('cover')`
+   只切 display 不重建 → 回封面永远显示旧计数；
+3. Safari 直接打开本地文件（file://）时 `localStorage` 抛 SecurityError，读写全部被
+   try/catch 静默吞掉 → 存档与结局收集**完全写不进去**且无任何提示；
+4. `endGame` 往 `meta.endings` 存的是 title **字符串**，`showEndings` 按对象
+   访问 `en.type/en.title` → 全部 undefined，收集页渲染空卡片。
+**自检**（validate_game.py `ENGINE_CONTRACT` 已覆盖前 3 项）：
+- `clearSave()` 必须只 `removeItem(SAVE_KEY)`；`clearAllData()` 才清全部前缀 key
+- 封面结局计数每次 `show('cover')` 刷新（`refreshCoverMeta`）
+- 所有读写走 `storage` 封装（localStorage 不可用时降级内存 Map + 封面提示条）
+- `meta.endings` 存对象 `{type, title, desc}`，渲染时兼容旧字符串数据
 
 ---
 
@@ -122,6 +141,47 @@ repair 指令明确"输出必须是纯 JSON，不得用代码围栏"。
 **根因**：repair 重写整个数据包时丢了未报错部分的信息。
 **自检**：repair 采用**补丁式输出**（只改有问题的场景/字段），不要整包重写；
 validate_game 的问题清单按文件归类回传，一次修复后立即复跑全套校验。
+
+### Bug#19 主题漂移：theme.js 被 LLM 塞入自创色（theme 2.0 实录，2026-09）
+**症状**：同一套模板生成的所有游戏视觉都是"暖咖自配色"，盖过主题气质；
+生成的 theme.js 出现 `colors/fonts/cover` 字段，色值与 detect 主题毫无关系。
+**根因**（三层叠加）：
+1. 主题模板 JSON 携带机器色值（colors/fonts/cover）→ LLM 拿到"我可以调色"的错觉，
+   generate 阶段把模板 JSON 拷进 theme.js 再"发挥"改色；
+2. theme.js 的写入通道开放给 LLM patch（apply_patch 顶层含 theme 键）；
+3. QA 不校验 theme.js 内容 → 漂移零成本落地。
+**根治（theme 2.0）**：视觉唯一权威 = `engine/theme.css` 的 12 个 `style-<id>` 块；
+theme.js 只许 `{"name": "<白名单 id>"}`（detect 决定 → game_init 写入，LLM 无通道）；
+主题模板 JSON 不再存任何色值；apply_patch 丢弃 theme 键。
+**自检**（validate_game.py check_theme 已覆盖）：
+- theme.js 有 `colors` = warning「旧版视觉漂移残留」→ 跑 `tools/theme_backfill.py` 回填
+- `name` 不在 `templates/themes/` 白名单 / CSS 无对应 `body.style-<id>` 块 = error
+- 修数据源时不得再往 theme.js 写色值；repair 补丁无 theme 通道
+
+### Bug#20 LLM 空响应裸崩：阶段故障无兜底、失败 exit 0（2026-09 实录）
+**症状**：真实跑 generate 批 2/2 时 DeepSeek 连续 3 次返回空内容 → LLMError 未捕获，
+裸 traceback 中断整条管线；`python agent.py ... | tee log` 下管道掩盖退出码（exit 0），
+用户误以为跑成功。
+**根因**（两层叠加）：
+1. `react_loop`/`stage_generate` 只处理"校验不过"，不处理 LLM 调用层异常 → 异常炸穿 run()；
+2. main() 无顶层捕获；经由管道跑时退出码被 tee 吞掉。
+**自检**（agent.py 已修）：
+- run() 阶段级 `except LLMError → RuntimeError（带 --resume 指引）`，main 顶层捕获
+  LLMError/RuntimeError → 友好信息 + `sys.exit(1)`；KeyboardInterrupt → exit 130
+- checkpoint 未写 = 阶段未完成 → `--resume` 从失败阶段续（apply_patch 合并语义，幂等）
+- 空内容重试降级链（core/llm.py）：先去掉 max_tokens（交服务端默认），仍空再去掉
+  response_format json 约束（自由输出后由 parse_json_block 容错解析）
+- 别再用管道掩盖退出码：检查 `$?` 或用 `set -o pipefail`
+
+### Bug#21 生图提示词尺寸标注永远丢失（2026-09 实录）
+**症状**：所有生成图片都是 1024×1024 方形——立绘该是 9:16、背景该是 16:9，
+全库无一例外；生图成功率看似正常，实际比例信息从未送达 API。
+**根因**：`_fmt_prompt` 写单行头 `# portrait / 画风: X / 尺寸: 9:16`，
+`load_prompt_file` 却只匹配以 `# 尺寸: ` 开头的独立行 → 尺寸永远解析为 None → 回落默认。
+**自检**（core/image.py `load_prompt_file` 已改为行内搜索 `尺寸:`；tests/test_image.py 回归）：
+- prompt 头含 `尺寸:` 标注时出图必须按 720x1280/1280x720 请求（Kolors 实测支持）
+- 顺带：重试分类——429/5xx 退避重试，4xx（参数/鉴权/余额）立即失败不空转
+- 每阶段结束写 `runtime/<run_id>/illustrate.json` manifest，失败图不再只活在 console
 
 ---
 

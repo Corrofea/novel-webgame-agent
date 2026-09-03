@@ -5,10 +5,15 @@
 用法:
     python agent.py 小说.txt                  # 正常执行（需 DEEPSEEK_API_KEY）
     python agent.py 小说.txt --mock           # 用 mock LLM 跑通管线（测试/无 key）
-    python agent.py 小说.txt --resume         # 从断点继续（跳过已完成阶段）
+    python agent.py 小说.txt --resume         # 从断点继续（自动定位该书最近一次运行）
+    python agent.py 小说.txt --run-id xyz     # 指定运行 id（幂等续跑/测试确定性）
 
 输入：小说文件（TXT/MD/EPUB，均为标准库处理）
-输出：games/<book_id>/ 游戏文件夹 + archive/<book_id>.zip 打包存档
+输出：games/<run_id>/ 游戏文件夹 + archive/<run_id>.zip 打包存档
+
+隔离：每次调用生成独立的 run_id（<book_id>_<时间戳>），games/ 是游戏库——
+每个 run_id 一个文件夹，同书多次运行互不覆盖；runtime/ 中间产物同样按
+run_id 隔离，--resume 自动定位该书最近一次运行（或 --run-id 显式指定）。
 
 流程（plan 实例化阶段序列，execute 逐阶段执行，每阶段写检查点）：
   ingest → detect → chunk → [summarize(长篇)] → characters → style
@@ -18,14 +23,15 @@ import argparse
 import json
 import subprocess
 import sys
+from datetime import datetime
 from pathlib import Path
 
 from core.contracts import (run_qa_scripts, validate_characters, validate_detect,
-                            validate_style)
+                            validate_extract, validate_style)
 from core.llm import DeepSeekClient, MockLLM, LLMError
 from core.react import ReactResult, json_validator, react_loop
-from core.utils import (ROOT, clamp_context, read_json, read_text, slugify,
-                        write_json, write_text)
+from core.utils import (ROOT, clamp_context, load_dotenv, read_json, read_text,
+                        slugify, write_json, write_text)
 from core.workers import get_worker
 
 VERSION = '0.1.0'
@@ -36,24 +42,39 @@ GENERATE_BATCH_SCENES = 10
 # ---------------------------------------------------------------- 数据包写盘
 
 def apply_patch(game_dir: Path, patch: dict) -> list:
-    """把生成/修复包写进 games/<book_id>/data/。返回写盘错误列表。"""
+    """把生成/修复包写进 games/<book_id>/data/。返回写盘错误列表。
+
+    patch 契约（顶层字段可选，缺省不动）：
+      game/mode/characters         整体替换对应数据对象
+      scenes                       {"s001": {...}, "s009": null} 逐节点合并，null=删除
+      events                       命运事件池（list），整体替换 SCENES.events
+      theme                       忽略（theme.js 由 game_init 按 detect 主题写死；
+                                   patch 里出现该键静默不写——LLM 无视觉调色通道）
+    """
     errors = []
     data_dir = game_dir / 'data'
     data_dir.mkdir(parents=True, exist_ok=True)
-    for key in ('game', 'mode', 'characters', 'theme'):
+    for key in ('game', 'mode', 'characters'):
         if key in patch and patch[key] is not None:
             _write_js(data_dir / f'{key}.js', key.upper(), patch[key])
     scenes = patch.get('scenes')
-    if scenes is not None:
+    events = patch.get('events')
+    if scenes is not None or events is not None:
         path = data_dir / 'scenes.js'
         existing = _load_js(path, 'SCENES', {})
         merged = dict(existing.get('scenes', {}))
-        for sid, node in scenes.items():
-            if node is None:
-                merged.pop(sid, None)
-            else:
-                merged[sid] = node
-        _write_js(path, 'SCENES', {'scenes': merged})
+        if scenes is not None:
+            for sid, node in scenes.items():
+                if node is None:
+                    merged.pop(sid, None)
+                else:
+                    merged[sid] = node
+        out = {'scenes': merged}
+        if events is not None:
+            out['events'] = events
+        else:
+            out['events'] = existing.get('events', [])
+        _write_js(path, 'SCENES', out)
     return errors
 
 
@@ -74,6 +95,20 @@ def _load_js(path: Path, var: str, default):
         return json.loads(text[start:end + 1])
     except json.JSONDecodeError:
         return default
+
+
+def theme_card(theme_id: str) -> str:
+    """主题目录卡（theme 2.0 提示词注入用）：只给 id/中文名/气质/适用。
+
+    模板 JSON 已无任何色值；配色与质感由引擎 CSS 的 style-<id> 块自动套用，
+    LLM 不需要也不允许输出 theme 相关字段（见 generate.md 硬性规则）。
+    """
+    tpl = read_json(ROOT / 'templates' / 'themes' / f'{theme_id}.json')
+    return (f'id: {theme_id}\n'
+            f'风格: {tpl.get("name", "")}\n'
+            f'气质: {tpl.get("气质", "")}\n'
+            f'适用: {tpl.get("适用", "")}\n'
+            '视觉由引擎自动套用，输出中禁止出现 theme/colors/fonts 字段')
 
 
 def _extract_epub_text(epub_path: Path, out_path: Path):
@@ -159,7 +194,7 @@ def _envelope_validator(game_dir: Path, full_check: bool):
 
 class NovelAgent:
     def __init__(self, novel_path: str, config: dict, mock: bool = False, resume: bool = False,
-                 mock_dirs: list = None):
+                 mock_dirs: list = None, run_id: str = None):
         self.novel_path = Path(novel_path)
         if not self.novel_path.exists():
             raise SystemExit(f'小说文件不存在: {self.novel_path}')
@@ -169,21 +204,57 @@ class NovelAgent:
         self._mock_dirs = [Path(d) for d in (mock_dirs or [])]
         self.title = self.novel_path.stem
         self.book_id = slugify(self.title)
-        self.work_dir = ROOT / 'runtime' / self.book_id
-        self.game_dir = ROOT / 'games' / self.book_id
+        # run_id：每次调用唯一（游戏库隔离）。显式指定 > resume 找最近 > 新时间戳
+        if run_id:
+            self.run_id = run_id
+        elif self.resume:
+            self.run_id = self._latest_run_id()
+        else:
+            self.run_id = self._new_run_id()
+        self.work_dir = ROOT / 'runtime' / self.run_id
+        self.game_dir = ROOT / 'games' / self.run_id
         self.state_path = self.work_dir / 'state.json'
         self.state = self._load_state()
         default_fixtures = ROOT / 'tests' / 'fixtures' / 'mock_data'
         # 自定义 fixture 目录优先（可覆盖同名的默认桩）
         self.llm = MockLLM(self._mock_dirs + [default_fixtures]) if mock else \
             DeepSeekClient(config)
+        self._reasoner_down = False  # reasoner 连续失败熔断：语义评审只证明一次
+
+    # ---- run_id 生成与定位 ----
+    def _new_run_id(self) -> str:
+        """新运行：<book_id>_<时间戳>；同秒撞名时加 -2/-3 后缀。"""
+        ts = datetime.now().strftime('%Y%m%d-%H%M%S')
+        candidate = f'{self.book_id}_{ts}'
+        n = 2
+        while (ROOT / 'runtime' / candidate).exists():
+            candidate = f'{self.book_id}_{ts}-{n}'
+            n += 1
+        return candidate
+
+    def _latest_run_id(self) -> str:
+        """resume 定位：该书（book_id 或 book_id_<时间戳>）最近一次运行。
+
+        严格匹配 run_id 形态（_new_run_id 的产出），避免把其他书的目录
+        （如 tiny_novel_bad 之于 tiny_novel）误判为本书运行。
+        时间戳后缀可字典序排序（YYYYMMDD-HHMMSS），直接取 max。
+        """
+        import re
+        base = ROOT / 'runtime'
+        pat = re.compile(r'^' + re.escape(self.book_id) + r'(_\d{8}-\d{6}(-\d+)?)?$')
+        candidates = [d.name for d in base.iterdir() if d.is_dir() and pat.match(d.name)]
+        if not candidates:
+            raise SystemExit(
+                f'--resume 但 runtime/ 下找不到 {self.book_id} 的历史运行'
+                f'（首次运行请去掉 --resume）')
+        return max(candidates)
 
     # ---- 状态与检查点 ----
     def _load_state(self) -> dict:
         if self.resume and self.state_path.exists():
             return read_json(self.state_path)
-        return {'book_id': self.book_id, 'title': self.title, 'done': [],
-                'mode': None, 'qa_rounds': 0, 'plan_id': None}
+        return {'book_id': self.book_id, 'run_id': self.run_id, 'title': self.title,
+                'done': [], 'mode': None, 'qa_rounds': 0, 'plan_id': None}
 
     def _checkpoint(self, stage: str):
         if stage not in self.state['done']:
@@ -213,6 +284,34 @@ class NovelAgent:
                 print('  （深模型校验失败，可能输出格式问题；考虑降级重试或人工介入）')
         return result
 
+    def _design_validator(self):
+        """design 校验器：基础 JSON + 必需字段 + scene_blueprint 规模上限。
+
+        场景数必须按原文素材量缩放（2026-09 实录：1149 字原文被设计了 20 个场景，
+        每场景仅 57 字原文支撑——提示词里的"宁少勿滥"管不住生成，这里硬性拦截）。
+        上限与 design.md 一致，给 2 个容差：<3000 字 → ≤12；<1.5 万字 → ≤16；否则 ≤40。
+        """
+        try:
+            chapters = read_json(self.work_dir / 'chapters.json')
+            n_chars = int(chapters.get('cleaned_chars', 0))
+        except Exception:
+            n_chars = 0
+        hi = 12 if n_chars < 3000 else (16 if n_chars < 15000 else 40)
+
+        def validate(content):
+            ok, errors = json_validator(['game_title', 'scene_blueprint',
+                                         'endings', 'attributes'])(content)
+            if not ok:
+                return False, errors
+            data = json.loads(content)
+            n = len(data.get('scene_blueprint') or [])
+            if n > hi:
+                return False, [f'scene_blueprint 有 {n} 个场景，超过原文 {n_chars} 字的'
+                               f'合理上限 {hi}（每场景约需 80~150 字原文支撑，'
+                               '宁少勿滥，禁止凭空编造主线）。请删减/合并到该范围内重出']
+            return True, []
+        return validate
+
     def _read_source_text(self, budget=40000) -> str:
         """读取用于 LLM 阶段的原文（短篇：分块；长篇：摘要）。"""
         chunks = read_json(self.work_dir / 'chunks.json')['chunks']
@@ -221,7 +320,7 @@ class NovelAgent:
     # ---- 阶段执行 ----
     def run(self):
         print(f'== novel-webgame-agent v{VERSION} ==')
-        print(f'小说: {self.title}  工作目录: runtime/{self.book_id}/')
+        print(f'小说: {self.title}  运行: {self.run_id}  工作目录: runtime/{self.run_id}/')
         if self.mock:
             print('（mock 模式：LLM 输出为测试桩）')
 
@@ -251,13 +350,18 @@ class NovelAgent:
                 continue
             print(f'\n[执行] {stage}')
             fn = getattr(self, f'stage_{stage}')
-            fn()
+            try:
+                fn()
+            except LLMError as e:
+                # 阶段级 LLM 故障不留下裸 traceback：checkpoint 未写 → resume 会从本阶段续
+                raise RuntimeError(f'{stage} 阶段 LLM 请求失败（可 --resume 续跑，'
+                                   f'已完成阶段不会重做）: {e}') from None
             self._checkpoint(stage)
             print(f'[完成] {stage}')
 
         print('\n== 全部阶段完成 ==')
         print(f'游戏文件夹: {self.game_dir}/')
-        print(f'打包存档:   {ROOT / "archive" / (self.book_id + ".zip")}')
+        print(f'打包存档:   {ROOT / "archive" / (self.run_id + ".zip")}')
 
     # ---- 各阶段 ----
     def stage_ingest(self):
@@ -293,6 +397,57 @@ class NovelAgent:
         self._run(ROOT / 'skills' / 'text-processing' / 'scripts' / 'chunker.py',
                   '--chunk', '--chapters-json', self.work_dir / 'chapters.json',
                   '--mode', mode_id, '--out', self.work_dir)
+
+    def stage_extract(self):
+        """按模式特异性解构文本：逐块 LLM 提取 → bible/extract_<mode_id>.json。
+
+        模式差异（提取任务与输出结构）来自 templates/game_modes/<id>.json 的
+        extraction 字段；单块失败重试 1 次后跳过（降级不阻断），产物供 design 使用。
+        """
+        mode_id = self.state['mode']['mode_id']
+        mode_tpl = read_json(ROOT / 'templates' / 'game_modes' / f'{mode_id}.json')
+        extraction = mode_tpl.get('extraction')
+        if not extraction:
+            print(f'⚠ 模式 {mode_id} 无 extraction 配置，跳过文本解构')
+            return
+        chunks = read_json(self.work_dir / 'chunks.json')['chunks']
+        worker = get_worker('extract')
+        schema = json.dumps(extraction.get('schema', {}), ensure_ascii=False, indent=1)
+        items, failures = [], []
+        for c in chunks:
+            task = ('[STAGE:extract]\n'
+                    f'游戏模式：{mode_id}（{mode_tpl.get("name", "")}）\n'
+                    f'提取任务：{extraction["task"]}\n'
+                    f'输出结构参照（items 数组中每个元素的字段以此为准）：\n{schema}\n\n'
+                    f'### 文本块 {c["id"]}\n{clamp_context(c["text"], 9000)}'
+                    '\n\n输出严格 JSON：{"items": [...]}。只提取本块实际出现的内容，'
+                    '不确定的字段用空字符串/空数组，不要编造。')
+            content, last_err = None, None
+            for _ in range(2):  # 单次调用 + 1 次重试；仍失败则跳过该块
+                try:
+                    # v4-flash 推理模型会先消耗 max_tokens 做 reasoning，
+                    # 4000 不够（推理耗尽 → 空 content 失败），与 react.py 同款问题
+                    content = self.llm.chat_json([{'role': 'user', 'content': task}],
+                                                 model='chat', max_tokens=16000)
+                    break
+                except LLMError as e:
+                    last_err = e
+            if content is None or not isinstance(content.get('items'), list) or not content['items']:
+                failures.append(c['id'])
+                if content is not None and not content.get('items'):
+                    last_err = 'items 为空'
+                print(f'  ⚠ 块 {c["id"]} 解构失败（跳过）: {last_err}')
+                continue
+            items.extend(content['items'])
+        out = {'mode_id': mode_id, 'items': items, 'failed_blocks': failures}
+        write_json(self.work_dir / 'bible' / f'extract_{mode_id}.json', out)
+        ok, errors = validate_extract(out, mode_id)
+        if failures:
+            print(f'⚠ 文本解构: {len(chunks) - len(failures)}/{len(chunks)} 块成功，'
+                  f'失败块: {failures}（素材可能不完整，design 可容忍）')
+        if not ok:
+            print(f'⚠ 解构产物结构问题: {errors[:3]}（不阻断管线）')
+        print(f'文本解构: {len(items)} 条素材 → bible/extract_{mode_id}.json')
 
     def stage_summarize(self):
         chunks = read_json(self.work_dir / 'chunks.json')['chunks']
@@ -339,8 +494,8 @@ class NovelAgent:
 
     def stage_game_init(self):
         self._run(ROOT / 'tools' / 'game_init.py',
-                  '--book-id', self.book_id, '--title', self.title,
-                  '--game-dir', self.game_dir)
+                  '--book-id', self.book_id, '--run-id', self.run_id,
+                  '--title', self.title, '--game-dir', self.game_dir)
 
     def stage_design(self):
         world = read_text(self.work_dir / 'bible' / 'world.md')
@@ -348,15 +503,21 @@ class NovelAgent:
         mode_id = self.state['mode']['mode_id']
         mode_tpl = read_json(ROOT / 'templates' / 'game_modes' / f'{mode_id}.json')
         theme_id = self.state['mode']['theme_id']
-        theme_tpl = read_json(ROOT / 'templates' / 'themes' / f'{theme_id}.json')
         task = ('[STAGE:design]\n'
                 f'游戏模式模板：\n{json.dumps(mode_tpl, ensure_ascii=False, indent=1)}\n\n'
-                f'主题模板：\n{json.dumps(theme_tpl, ensure_ascii=False, indent=1)}\n\n'
+                f'主题（视觉基调，仅作氛围把握）：\n{theme_card(theme_id)}\n\n'
                 f'世界观圣经：\n{clamp_context(world, 20000)}\n\n'
-                f'人物卡：\n{json.dumps(chars, ensure_ascii=False, indent=1)}\n\n'
-                '按 design.md 输出设计 brief（严格 JSON）。')
+                f'人物卡：\n{json.dumps(chars, ensure_ascii=False, indent=1)}\n\n')
+        # 文本解构素材（extract 阶段产物）：作为场景蓝图的素材库，存在才注入
+        extract_path = self.work_dir / 'bible' / f'extract_{mode_id}.json'
+        if extract_path.exists():
+            extract_data = read_json(extract_path)
+            task += (f'文本解构素材（按此设计场景蓝图——数量按素材量缩放见 design.md，'
+                     f'宁少勿滥，严禁为凑场景凭空编造主线）：\n'
+                     f'{clamp_context(json.dumps(extract_data, ensure_ascii=False, indent=1), 20000)}\n\n')
+        task += '按 design.md 输出设计 brief（严格 JSON）。'
         result = self._llm_stage('design', 'design', task,
-                                 json_validator(['game_title', 'scene_blueprint', 'endings', 'attributes']))
+                                 self._design_validator())
         if not result.ok:
             raise RuntimeError(f'design 输出未通过校验: {result.errors[:3]}')
         data = json.loads(result.content)
@@ -370,7 +531,6 @@ class NovelAgent:
         mode_id = self.state['mode']['mode_id']
         theme_id = self.state['mode']['theme_id']
         mode_tpl = read_json(ROOT / 'templates' / 'game_modes' / f'{mode_id}.json')
-        theme_tpl = read_json(ROOT / 'templates' / 'themes' / f'{theme_id}.json')
         chars = read_json(self.work_dir / 'characters.json')
         blueprint = brief.get('scene_blueprint', [])
         batches = [blueprint[i:i + GENERATE_BATCH_SCENES]
@@ -385,12 +545,12 @@ class NovelAgent:
                     + f'book_id: {self.book_id}\n'
                     + f'book 名: {self.title}\n'
                     + f'模式模板 runtime：\n{json.dumps(mode_tpl["runtime"], ensure_ascii=False, indent=1)}\n'
-                    + f'主题模板：\n{json.dumps(theme_tpl, ensure_ascii=False, indent=1)}\n'
+                    + f'主题（视觉基调，仅作氛围把握）：\n{theme_card(theme_id)}\n'
                     + f'人物卡：\n{json.dumps(chars, ensure_ascii=False, indent=1)}\n'
                     + f'设计 brief：\n{json.dumps(brief, ensure_ascii=False, indent=1)}\n'
                     + f'本次生成第 {idx + 1}/{len(batches)} 批，场景 id：{batch_ids}\n'
                     + '输出格式：{"patch": {"game": {...}, "mode": {...}, "characters": {...}, '
-                      '"theme": {...}, "scenes": {批量场景节点}}}。'
+                      '"scenes": {批量场景节点}}}——顶层禁止 theme 字段。'
                     + ('这是最后一批，场景必须整体完整可达。' if last
                        else '非最后一批：只输出本批 scenes 与完整顶层字段，其余照常。'))
             result = react_loop(self.llm, worker['system_prompt'], task,
@@ -450,6 +610,10 @@ class NovelAgent:
         self.stage_qa()
 
     def _semantic_review(self):
+        if self._reasoner_down:
+            # 熔断：reasoner 本 run 已确认不可用，不再每次花几分钟证明它死了
+            print('⏭ 语义评审跳过（reasoner 本 run 已失败，评分按 0，结构校验不受影响）')
+            return {'score': 0, 'problems': []}
         try:
             world = read_text(self.work_dir / 'bible' / 'world.md')
         except FileNotFoundError:
@@ -464,55 +628,162 @@ class NovelAgent:
                 '按 review_prompt.md 输出严格 JSON：{"score": 0-10, "problems": [...], "praise": [...]}')
         try:
             content = self.llm.chat([{'role': 'user', 'content': task}],
-                                    model='reasoner', json_mode=True, max_tokens=3000)
+                                    model='reasoner', json_mode=True, max_tokens=8000)
             return json.loads(content)
         except (LLMError, json.JSONDecodeError) as e:
             print(f'⚠ 语义评审失败: {e}')
+            self._reasoner_down = True  # 一次失败即熔断，后续轮次直接跳过
             return {'score': 0, 'problems': []}
 
-    def stage_illustrate(self):
-        """插画提示词生成（本地，无图片 API 依赖）。
+    def _image_client(self):
+        """生图客户端：--mock 用 MockImageClient；真实模式无 key 时返回 None（降级为仅提示词）。"""
+        if self.mock:
+            from core.image import MockImageClient
+            return MockImageClient()
+        try:
+            from core.image import ImageError, SiliconFlowImage
+            return SiliconFlowImage(self.config.get('image', {}))
+        except ImageError as e:
+            print(f'  ℹ 未配置生图 key（{e}），仅生成提示词，图片可后续手动补放 assets/')
+            return None
 
-        DeepSeek 是纯文本 API，不生成图片；本阶段为每个角色与有背景的场景
-        生成统一画风的绘图提示词（写入 assets/.../*.prompt.txt），
-        用户用外部生图工具出图后放到同名路径即可（引擎对缺失素材自动降级）。
+    def stage_illustrate(self):
+        """插画：提示词生成（本地）+ 可选生图（SiliconFlow，配置 key 后启用）。
+
+        每个角色与有背景的场景先生成统一画风的 .prompt.txt；若配置了
+        SILICONFLOW_API_KEY 则调用生图 API 输出 PNG 到同名路径
+        （角色图写入 portrait 字段，引擎直接展示；失败时降级为无图，引擎不报错）。
         """
         sys.path.insert(0, str(ROOT / 'skills' / 'illustration' / 'scripts'))
         from prompt_builder import build_prompt  # noqa: E402
+        from core.image import ImageError, load_prompt_file
 
         theme_id = self.state['mode']['theme_id']
         style_id = self.config['pipeline'].get('illustration_styles', {}).get(theme_id, 'flat_modern')
 
         chars = _load_js(self.game_dir / 'data' / 'characters.js', 'CHARACTERS', {})
         scenes = _load_js(self.game_dir / 'data' / 'scenes.js', 'SCENES', {})
-        written = []
+        img = self._image_client()
+        written, imaged, failed = [], 0, []
 
         for c in chars.get('characters', []):
             desc = c.get('desc') or c.get('role') or ''
             try:
                 r = build_prompt('portrait', c.get('name', c['id']), desc, style_id)
-                path = self.game_dir / 'assets' / 'characters' / f"{c['id']}.prompt.txt"
-                path.write_text(_fmt_prompt(r), encoding='utf-8')
-                written.append(path.name)
+                prompt_path = self.game_dir / 'assets' / 'characters' / f"{c['id']}.prompt.txt"
+                prompt_path.write_text(_fmt_prompt(r), encoding='utf-8')
+                written.append(prompt_path.name)
             except Exception as e:
                 print(f'  ⚠ 角色 {c.get("id")} 提示词生成失败: {e}')
-
-        bg_files = set()
-        for node in scenes.get('scenes', {}).values():
-            if node.get('bg'):
-                # 按引用路径的 basename 命名提示词：出图后放同名文件即可直接生效
-                bg_files.add(Path(node['bg']).name)
-        for fname in sorted(bg_files):
+                continue
+            if img is None:
+                continue
+            target = c.get('portrait')
+            if not target or not target.lower().endswith(('.png', '.jpg', '.jpeg', '.webp')):
+                target = f'assets/characters/{c["id"]}.png'
             try:
-                r = build_prompt('bg', fname, f'背景 {fname} 的氛围与场景', style_id)
-                path = self.game_dir / 'assets' / 'bg' / f'{fname}.prompt.txt'
-                path.write_text(_fmt_prompt(r), encoding='utf-8')
-                written.append(path.name)
+                prompt, size = load_prompt_file(prompt_path)
+                saved = img.generate(prompt, self.game_dir / target, size)
+                imaged += 1
+                rel = str(Path(saved).relative_to(self.game_dir))
+                if c.get('portrait') != rel:
+                    # 回写 portrait 字段（格式可能把 .png 变 .jpg），引擎按此渲染
+                    data = _load_js(self.game_dir / 'data' / 'characters.js', 'CHARACTERS', {})
+                    for cc in data.get('characters', []):
+                        if cc.get('id') == c['id']:
+                            cc['portrait'] = rel
+                    _write_js(self.game_dir / 'data' / 'characters.js', 'CHARACTERS', data)
+            except ImageError as e:
+                print(f'  ⚠ 角色 {c.get("id")} 生图失败（已降级为无图）: {e}')
+                failed.append({'kind': 'portrait', 'id': c.get('id'), 'error': str(e)})
+
+        # 背景素材语义化：从引用该 bg 的第一个场景取 场景名 + 叙述片段 作文生图描述
+        # （旧实现只传文件名占位，图永远泛泛；2026-09 实录缺陷）
+        bg_meta = {}
+        for node in scenes.get('scenes', {}).values():
+            if not node.get('bg'):
+                continue
+            fn = Path(node['bg']).name
+            if fn in bg_meta:
+                continue
+            t = (node.get('title') or '').strip()
+            n = (node.get('narration') or '').strip()
+            bg_meta[fn] = (t, n[:90])
+        bg_files = set(bg_meta)
+        for fname in sorted(bg_files):
+            node_bg = next(n['bg'] for n in scenes.get('scenes', {}).values()
+                           if n.get('bg') and Path(n['bg']).name == fname)
+            t, n = bg_meta[fname]
+            try:
+                r = build_prompt('bg', t or Path(fname).stem,
+                                 n or f'{Path(fname).stem} 的场景氛围', style_id)
+                prompt_path = self.game_dir / 'assets' / 'bg' / f'{fname}.prompt.txt'
+                prompt_path.write_text(_fmt_prompt(r), encoding='utf-8')
+                written.append(prompt_path.name)
             except Exception as e:
                 print(f'  ⚠ 背景 {fname} 提示词生成失败: {e}')
+                continue
+            if img is None:
+                continue
+            try:
+                prompt, size = load_prompt_file(prompt_path)
+                saved = img.generate(prompt, self.game_dir / node_bg, size)
+                imaged += 1
+                rel = str(Path(saved).relative_to(self.game_dir))
+                if rel != node_bg:
+                    # 格式扩展名变化时同步 scenes.js 的 bg 引用
+                    sdata = _load_js(self.game_dir / 'data' / 'scenes.js', 'SCENES', {})
+                    if any(n.get('bg') == node_bg for n in sdata.get('scenes', {}).values()):
+                        for n in sdata['scenes'].values():
+                            if n.get('bg') == node_bg:
+                                n['bg'] = rel
+                        _write_js(self.game_dir / 'data' / 'scenes.js', 'SCENES', sdata)
+            except ImageError as e:
+                print(f'  ⚠ 背景 {fname} 生图失败（已降级为无图）: {e}')
+                failed.append({'kind': 'bg', 'id': fname, 'error': str(e)})
 
+        # 封面主视觉（可选 assets/cover.webp，illustrate 阶段生成；引擎缺图自动隐藏
+        # → 主题纹理兜底；.png 兼容历史产物，引擎双扩展名容错）
+        cover_art = self.game_dir / 'assets' / 'cover.webp'
+        brief_p = self.work_dir / 'design' / 'brief.json'
+        try:
+            if brief_p.exists():
+                b = read_json(brief_p)
+                cg = build_prompt('cg', b.get('game_title') or self.title,
+                                  b.get('subtitle') or '', style_id)
+                if img is not None:
+                    try:
+                        saved = img.generate(cg['prompt'], cover_art, cg['size'])
+                        imaged += 1
+                        print(f'  ✓ 封面主视觉已生成 {Path(saved).name}（引擎双扩展名容错）')
+                    except ImageError as e:
+                        failed.append({'kind': 'cover', 'id': Path(cover_art).name, 'error': str(e)})
+                        print(f'  ⚠ 封面主视觉失败（降级为主题纹理封面）: {e}')
+        except Exception as e:
+            print(f'  ⚠ 封面主视觉跳过: {e}')
+
+        # 落盘 manifest：QA/用户可查"哪些图没生成"，失败不再只活在 console
+        manifest = {
+            'style_id': style_id,
+            'img_client': 'mock' if self.mock else ('siliconflow' if img else 'none（未配置 key）'),
+            'prompt_files': len(written),
+            'images_ok': imaged,
+            'failed': failed,
+        }
+        try:
+            run_dir = ROOT / 'runtime' / self.run_id
+            run_dir.mkdir(parents=True, exist_ok=True)
+            (run_dir / 'illustrate.json').write_text(
+                json.dumps(manifest, ensure_ascii=False, indent=2), encoding='utf-8')
+        except OSError:
+            pass
         if written:
-            print(f'插画提示词（画风 {style_id}）: {len(written)} 个 → assets/')
+            print(f'插画提示词（画风 {style_id}）: {len(written)} 个 → assets/'
+                  + (f'，已生成 {imaged} 张图片' if imaged else '（未配置生图 key，图片待补）'))
+            if failed:
+                print(f'  ⚠ {len(failed)} 张失败（已降级为无图）: '
+                      + '、'.join(f["kind"] + ' ' + f["id"] for f in failed)
+                      + '（明细见 runtime/<run_id>/illustrate.json）')
         else:
             print(f'插画提示词: 无（角色 0 人 / 无背景引用）')
 
@@ -520,7 +791,7 @@ class NovelAgent:
         self._run(ROOT / 'tools' / 'package.py', self.game_dir, '--archive', ROOT / 'archive')
         backend = self.config.get('upload', {}).get('backend', 'local')
         ttl = self.config.get('upload', {}).get('link_ttl_minutes', 30)
-        zip_path = ROOT / 'archive' / f'{self.book_id}.zip'
+        zip_path = ROOT / 'archive' / f'{self.run_id}.zip'
         if backend == 's3':
             self._run(ROOT / 'tools' / 'upload.py', zip_path, '--backend', 's3', '--ttl', str(ttl))
         else:
@@ -537,17 +808,29 @@ def main():
     ap.add_argument('--mock', action='store_true', help='使用 mock LLM（测试）')
     ap.add_argument('--mock-dir', action='append', default=[],
                     help='额外 mock fixture 目录（优先级高于默认 fixtures）')
-    ap.add_argument('--resume', action='store_true', help='从检查点继续')
+    ap.add_argument('--resume', action='store_true',
+                    help='从断点继续（自动定位该书最近一次运行）')
+    ap.add_argument('--run-id', help='运行 id（默认 <book_id>_<时间戳>；resume 时可用它指定具体某次运行）')
     args = ap.parse_args()
 
+    load_dotenv()  # 读取项目根目录 .env（DEEPSEEK_API_KEY / SILICONFLOW_API_KEY 等）
     config = read_json(args.config)
     try:
         agent = NovelAgent(args.novel, config, mock=args.mock, resume=args.resume,
-                           mock_dirs=args.mock_dir)
+                           mock_dirs=args.mock_dir, run_id=args.run_id)
     except LLMError as e:
         print(f'配置错误: {e}\n（离线测试请加 --mock）')
         sys.exit(1)
-    agent.run()
+    try:
+        agent.run()
+    except (LLMError, RuntimeError) as e:
+        # 阶段故障（LLM 空响应/超时/校验失败）已带续跑指引，不打印裸 traceback；
+        # checkpoint 未写入 → 直接 --resume 从失败阶段继续
+        print(f'\n✗ 管线中断: {e}')
+        sys.exit(1)
+    except KeyboardInterrupt:
+        print('\n（用户中断，可 --resume 续跑）')
+        sys.exit(130)
 
 
 if __name__ == '__main__':

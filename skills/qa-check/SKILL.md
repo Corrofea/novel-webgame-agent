@@ -30,7 +30,19 @@ description: 游戏质量检验。结构校验（schema/图）+ 冒烟测试（�
 python skills/qa-check/scripts/validate_game.py games/<书>/ --json
 ```
 退出码 0=通过。检测：数据解析、schema 字段、引用一致性（attr/角色/物品/goto）、
-孤立节点、死路、结局数量、素材引用存在性。
+孤立节点、死路、结局数量、素材引用存在性、**引擎契约**（结局收集必须完整：
+clearSave 只清存档不清 meta、storage 降级封装、封面计数刷新、theme 2.0 风格类
+挂载与兼容注入——引擎是共享代码，改坏影响所有游戏，见 `validate_game.py` 的
+`ENGINE_CONTRACT`）、**theme 四查**（check_theme，见下）。
+
+#### theme 四查（check_theme，theme.js 只许 `{"name": "<id>"}`）
+1. `engine/theme.css` 存在且含 `:root`（配色与质感权威缺失 = error）
+2. `name` 缺失（且无旧 colors）= error；`name` 不在 `templates/themes/` 白名单 = error
+3. `colors` 非空 = warning「旧版视觉漂移残留」（走引擎兼容注入；回填或重建后消除）
+4. `name` 合法时 CSS 必须含对应 `body.style-<id>` 块（主题未实现 = error）
+
+修复侧注意：repair 补丁**没有 theme 通道**（apply_patch 丢弃该键），QA 若报
+theme 问题无法用补丁修复——那是旧版残留，跳过由回填脚本/重建处理。
 
 ### 2. 冒烟测试（脚本）
 ```bash

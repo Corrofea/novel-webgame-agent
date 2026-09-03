@@ -1,0 +1,68 @@
+{
+  "id": "fate",
+  "name": "命运轮回",
+  "适用": "群像转生/人生重开模拟器：人物众多，玩家分配命运点数 → 按数值抽取转生身份 → 主线剧情中随机遭遇命运事件（参考 人生重开模拟器）",
+  "selection_criteria": [
+    "群像小说，人物众多且身份差异大（不同阶级/天赋/境遇）",
+    "主题与命运/轮回/出身相关，或适合'转生成某人'的玩法",
+    "文本中有可做命运事件的分支剧情片段（随机遭遇/天降横财/飞来横祸）",
+    "适合数值面板（天赋/家世/寿命/运气等可量化禀赋）"
+  ],
+  "chunk_strategy": {
+    "unit": "人物群×命运节点",
+    "method": "按人物群分块（每群含该人物的身份起点与专属剧情线）；另抽公共'命运事件'素材块（可独立成段的小事件：得失/际遇/祸福）",
+    "decision_point_extraction": "每块提取：人物身份（可作转生池条目：名号/描述/禀赋要求/剧情线起点）、公共事件（标题/叙述/触发禀赋要求/效果/去向）"
+  },
+  "extraction": {
+    "task": "把本块文本解构为命运素材：pool（转生身份池条目：name 名号（含身份特征）/description 一句话描述（≤40 字）/traits 禀赋要求（如 家世≥5）/start_scene_hint 其剧情线起点的原文场景描述）、events（独立命运事件素材：title 标题/context 触发情境/outcome 得失际遇/effects 效果方向 数值增减/requires 触发禀赋要求（无则空）/原文 quote）、fortunes（反复出现的量化要素：name 如 家世/才气/运气/evidence 原文依据）。全部引用原文，不创作。",
+    "schema": {
+      "items": [
+        {"kind": "pool", "name": "江南首富独子", "description": "锦衣玉食，前呼后拥，却无真心朋友", "traits": {"家世": 8}, "start_scene_hint": "出场于家宴独坐一隅"},
+        {"kind": "event", "title": "诗会夺魁", "context": "元宵诗会上对出上联", "outcome": "才名远播，被权贵赏识", "effects": {"才气": 3, "声望": 2}, "requires": {"才气": 4}, "quote": "众人皆惊，此子竟能对出百年绝对"},
+        {"kind": "fortune", "name": "家世", "evidence": "反复出现门第、家产、宗族地位的描写"}
+      ]
+    },
+    "uses": "design 阶段据此设计：pool→fate.draw_pool 转生身份池（requires 为禀赋门槛、start_scene 指向剧情线起点）、events→SCENES.events 命运事件池（5~10 个）、fortunes→attributes 禀赋面板（家世/才气/运气等）"
+  },
+  "design_guidance": {
+    "structure": "开局分配点数 → 转生抽取（按禀赋命中身份池，随机抽一）→ 身份剧情线（含 fate_event 命运事件点）→ 结局",
+    "draw_pool_policy": "draw_pool 至少 2 个转生身份，每个身份：requires 为禀赋门槛（区分身份，如 富贵要求家世≥5）、start_scene 指向其剧情线起点、effects 给身份加成；开局分配点数后命中的身份进抽取池",
+    "event_policy": "SCENES.events 预生成 5~10 个命运事件：requires 按禀赋过滤（如 才气≥4 触发'诗会夺魁'）、effects 给属性增减、goto 指回主线后续节点；事件在 fate_event 标记节点处随机抽取，抽过的不会重复",
+    "fate_event_nodes": "主线剧情中放 2~4 个 fate_event: true 节点（'命运的岔路'），节点自身必须有 choices/auto/ending 出路（事件只是可选的额外遭遇，玩家可跳过）",
+    "entry_policy": "入口节点（GAME.entry）是抽取锚点，玩家不实际经过（抽取后直接进入身份 start_scene），可为空壳节点（validate 对 fate 模式豁免其死路检查）",
+    "affection": "不启用；好感度由禀赋/际遇数值替代",
+    "pacing": "主线每 3~5 个场景放一个命运事件点；事件效果应与禀赋数值呼应",
+    "ending": "每条身份线 1~2 个结局；公共结局（寿终/功成名就）可共享"
+  },
+  "open_slots": [
+    "转生身份池 ← 人物群（名号/禀赋要求/描述）",
+    "身份剧情线 ← 各人物的际遇章节",
+    "命运事件 ← 文本中可独立成段的小事件（得失/际遇/祸福）",
+    "禀赋面板 ← 文本中反复出现的量化要素（家世/才气/运气/体魄）",
+    "结局 ← 各线的终局 + 公共终局"
+  ],
+  "qa_criteria": [
+    "draw_pool ≥ 2 且每项含 id/name/start_scene；start_scene 存在于 scenes 且从入口或某身份起点可达",
+    "events 每个含 id/title/narration/goto；goto 存在；requires/effects 属性合法；事件 id 唯一",
+    "至少 1 个 fate_event: true 节点（事件抽取点）；fate_event 节点自身有出路（不因跳过事件而死路）",
+    "入口节点是抽取锚点，允许无出边（fate 模式豁免）",
+    "fate 模式的属性门槛靠分配点数达成：validate 跳过 attrs 门槛启发式（避免误报）"
+  ],
+  "runtime": {
+    "mode_id": "fate",
+    "mode_name": "命运轮回",
+    "mechanics": ["fate"],
+    "attributes": [
+      { "id": "jiach", "label": "家世", "min": 0, "max": 20, "start": 0, "visible": true },
+      { "id": "caiqi", "label": "才气", "min": 0, "max": 20, "start": 0, "visible": true },
+      { "id": "yunqi", "label": "运气", "min": 0, "max": 20, "start": 0, "visible": true }
+    ],
+    "inventory": {"enabled": false, "limit": 20},
+    "panels": ["status", "choices"],
+    "perspectives": [],
+    "achievements": {"enabled": false},
+    "commentary": {"enabled": false},
+    "fate": {"enabled": true, "alloc_points": 20, "alloc_attrs": [], "draw_pool": []},
+    "endings": {"min": 2, "max": 6}
+  }
+}

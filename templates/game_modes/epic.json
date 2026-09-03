@@ -1,5 +1,5 @@
 {
-  "id": "s4_epic",
+  "id": "epic",
   "name": "多线史诗",
   "适用": "史诗/多主角平行线/家族史诗/名著（强综合性）",
   "selection_criteria": [
@@ -12,6 +12,16 @@
     "unit": "主角线 × 时期（矩阵切块）",
     "method": "先按主角分线，再按时间轴切段；每段独立摘要；交叉处建立时间线对齐标记",
     "decision_point_extraction": "每线关键抉择（标注原文选择）；'死亡续写'转折点（一条线的主角死亡后玩家可转生另一线）"
+  },
+  "extraction": {
+    "task": "把本块文本按叙事结构解构（参考非线性叙事的视角切分思路，简化为两板块）：① lines——本块出现的主角/视角线（name/该线本块内的剧情摘要/时间定位）；② key_events——本块发生的客观核心事件（time/客观时间定位或相对时间/participants/参与人物/objective_summary 剥离情绪的客观叙述/line 归属哪条线/uncertainty 时间不确定时注明推测依据）。时间错位（闪回/插叙）时，events 按客观时间写，并在 summary 中注明原文叙述顺序。全部引用原文。",
+    "schema": {
+      "items": [
+        {"kind": "line", "name": "乔弗里线", "time_anchor": "299AC 夏", "summary": "少年守卫离家北上，在长城前哨目睹异象"},
+        {"kind": "event", "time": "299AC 秋", "participants": ["乔弗里", "雪狼"], "objective_summary": "雪狼夜袭哨所，乔弗里拼死击退，北境防线出现缺口", "line": "乔弗里线", "uncertainty": null}
+      ]
+    },
+    "uses": "design 阶段据此设计：lines→perspectives 多视角线（mode.perspectives）、key_events→各线剧情节点与跨线时间对齐、闪回标记→叙述节点顺序安排、旁批点候选"
   },
   "design_guidance": {
     "structure": "视角切换器（多主角线）+ 叙述流 + 旁批侧栏",
@@ -34,7 +44,7 @@
     "转生/继承机制无断链"
   ],
   "runtime": {
-    "mode_id": "s4_epic",
+    "mode_id": "epic",
     "mode_name": "多线史诗",
     "mechanics": ["choices", "perspectives", "commentary"],
     "attributes": [],

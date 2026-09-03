@@ -5,6 +5,7 @@
     { "name": "ingest",   "worker": "parse",   "note": "读取+清洗+章节识别" },
     { "name": "detect",   "worker": "detect",  "note": "类型分析→模式选择→主题/基调" },
     { "name": "chunk",    "worker": "parse",   "note": "按模式分块" },
+    { "name": "extract",  "worker": "extract", "note": "按模式特异性解构文本素材（场景单元/谜题/事件池等 → bible/）" },
     { "name": "characters", "worker": "world", "note": "人物信息摘要（novel-character-cards）" },
     { "name": "style",    "worker": "world",   "note": "主旨/世界观/情感基调" },
     { "name": "game_init", "worker": "tool",   "note": "游戏文件夹初始化（模板实例化）" },

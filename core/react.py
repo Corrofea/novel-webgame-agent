@@ -24,14 +24,16 @@ def react_loop(llm, system_prompt, task, validator, max_rounds=3,
     """
     messages = [{'role': 'system', 'content': system_prompt},
                 {'role': 'user', 'content': task}]
+    # v4 模型是推理模型：max_tokens 会被推理过程先消耗，批次生成任务可能吃满 8000
+    max_tokens = 16000
     content, errors = '', []
     for round_no in range(1, max_rounds + 1):
         if json_mode:
             content = llm.chat(messages, model=model, json_mode=True,
-                               temperature=temperature, max_tokens=8000)
+                               temperature=temperature, max_tokens=max_tokens)
         else:
             content = llm.chat(messages, model=model, json_mode=False,
-                               temperature=temperature, max_tokens=8000)
+                               temperature=temperature, max_tokens=max_tokens)
         try:
             ok, errors = validator(content)
         except Exception as e:  # 校验器自身异常视为失败

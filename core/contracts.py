@@ -11,6 +11,22 @@ from pathlib import Path
 
 from .utils import ROOT
 
+THEMES_DIR = ROOT / 'templates' / 'themes'
+
+
+def valid_theme_ids() -> list:
+    """视觉主题白名单：templates/themes/*.json 的 id（与 CSS 风格块同源自动同步）。"""
+    ids = []
+    if THEMES_DIR.is_dir():
+        for p in sorted(THEMES_DIR.glob('*.json')):
+            try:
+                t = json.loads(p.read_text(encoding='utf-8'))
+            except (OSError, ValueError):
+                continue
+            if isinstance(t, dict) and t.get('id'):
+                ids.append(t['id'])
+    return ids
+
 
 def validate_characters(data) -> tuple:
     """characters.json 校验。返回 (ok, errors)。"""
@@ -42,9 +58,47 @@ def validate_detect(data) -> tuple:
     for field in ('mode_id', 'theme_id', 'chunk_strategy'):
         if not data.get(field):
             errors.append(f'detect 输出缺少 {field}')
-    valid_modes = {'g1_narrative', 'g2_strategy', 's3_puzzle', 's4_epic'}
+    # 模式模板：templates/game_modes/*.json（9 个语义化命名模式）
+    valid_modes = {'classic', 'strategy', 'puzzle', 'epic',
+                   'narrative', 'riddle', 'survival', 'fate', 'galgame'}
     if data.get('mode_id') not in valid_modes:
         errors.append(f"mode_id 非法: {data.get('mode_id')}（可选: {sorted(valid_modes)}）")
+    # 视觉主题：templates/themes/*.json 的 id（12 个，theme 2.0 起配色全归 CSS）
+    theme_id = data.get('theme_id')
+    if theme_id and theme_id not in valid_theme_ids():
+        errors.append(f"theme_id 非法: {theme_id}（可选: {sorted(valid_theme_ids())}）")
+    return (not errors), errors
+
+
+def validate_extract(data, mode_id) -> tuple:
+    """extract 阶段合并产物校验。返回 (ok, errors)。
+
+    宽松策略：素材库是辅助输入（design 可容忍缺失），只查结构性硬伤。
+    模式关键字段的细则定义在 templates/game_modes/<id>.json 的 extraction.schema。
+    """
+    errors = []
+    items = data.get('items') if isinstance(data, dict) else None
+    if not isinstance(items, list):
+        return False, ['extract 产物 items 必须是非空数组']
+    if not items:
+        return False, ['extract 产物 items 为空（全部文本块解构失败）']
+    for i, it in enumerate(items):
+        if not isinstance(it, dict):
+            errors.append(f'素材 {i} 必须是对象')
+            continue
+        kind = it.get('kind', '')
+        if mode_id == 'classic' and not it.get('summary'):
+            errors.append(f'经典叙事素材 {i} 缺少 summary（场景单元必须含起因→经过→结果）')
+        elif mode_id == 'riddle':
+            if kind == 'target' and not it.get('name'):
+                errors.append(f'谜题素材 {i}: target 缺少 name（谜底）')
+            if kind == 'material' and not it.get('quote'):
+                errors.append(f'谜题素材 {i}: material 缺少 quote（谜面来源原文）')
+        elif mode_id == 'fate':
+            if kind == 'pool' and not it.get('name'):
+                errors.append(f'命运素材 {i}: pool 条目缺少 name（转生身份名号）')
+            if kind == 'event' and not it.get('title'):
+                errors.append(f'命运素材 {i}: event 缺少 title')
     return (not errors), errors
 
 

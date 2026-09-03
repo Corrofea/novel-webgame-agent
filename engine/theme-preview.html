@@ -1,0 +1,125 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>theme 2.0 视觉主题 12 宫格预览</title>
+<style>
+  :root { color-scheme: light dark; }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; font-family: system-ui, -apple-system, 'PingFang SC', sans-serif;
+    background: #10131a; color: #cbd2de; padding: 16px;
+  }
+  header { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; margin-bottom: 14px; }
+  h1 { font-size: 16px; margin: 0 8px 0 0; font-weight: 600; }
+  header label { font-size: 13px; color: #8b93a3; }
+  header select, header button {
+    background: #1c212c; color: #cbd2de; border: 1px solid #333b4a;
+    border-radius: 6px; padding: 5px 10px; font-size: 13px;
+  }
+  header button { cursor: pointer; }
+  header button:hover { background: #262d3b; }
+  .hint { font-size: 12px; color: #6b7385; margin-left: auto; }
+  .hint code { color: #9aa4b8; background: #1c212c; padding: 1px 5px; border-radius: 4px; }
+  .grid {
+    display: grid; grid-template-columns: repeat(auto-fill, minmax(360px, 1fr));
+    gap: 14px;
+  }
+  .cell { border: 1px solid #2a3140; border-radius: 10px; overflow: hidden; background: #161a23; }
+  .cell .bar {
+    display: flex; align-items: baseline; gap: 8px; padding: 7px 12px;
+    font-size: 13px; border-bottom: 1px solid #2a3140;
+  }
+  .cell .bar b { font-weight: 600; }
+  .cell .bar code { color: #6ee7b7; font-size: 12px; }
+  .cell iframe { width: 100%; height: 560px; border: 0; display: block; background: #fff; }
+  .legacy-note {
+    margin: 18px 2px 8px; padding: 10px 14px; border-radius: 8px; font-size: 12.5px;
+    line-height: 1.7; background: #221d12; color: #d8c9a3; border: 1px solid #4a3d1e;
+  }
+</style>
+</head>
+<body>
+<header>
+  <h1>theme 2.0 · 12 视觉风格预览</h1>
+  <label>演示游戏
+    <select id="game">
+      <!-- 演示游戏 = 游戏库中的任意目录；本地 http server 访问（file:// 下 iframe 会被浏览器拦跨域） -->
+      <option value="long_novel">long_novel（现代·经典叙事）</option>
+      <option value="novel_3cee82_20260901-221145">novel_3cee82（noir 悬疑）</option>
+      <option value="tiny_novel_fate">tiny_novel_fate（ancient 命运轮回）</option>
+      <option value="tiny_novel">tiny_novel（mock 经典）</option>
+    </select>
+  </label>
+  <label><input type="checkbox" id="galgame"> galgame 排版（mode-galgame 布局预览）</label>
+  <button id="reload">刷新全部</button>
+  <span class="hint">预览钩子：<code>?theme=&lt;id&gt;</code> 换肤 + <code>&amp;galgame=1</code> 切排版，
+    只存在于引擎加载路径，不进产物数据。</span>
+</header>
+
+<div class="legacy-note">
+  用法：仓库根目录起本地服务后打开 <code>engine/theme-preview.html</code>
+  （<code>python3 -m http.server 8000</code> → 访问 http://localhost:8000/engine/theme-preview.html），
+  然后每个格子点一遍验收清单：封面主按钮对比度（--on-accent）、正文可读性、hint/错误框/
+  好坏结局标签、<code>?selftest=1</code> 终端色、mode-galgame 协调度、400px 窄屏。
+</div>
+
+<div class="grid" id="grid"></div>
+
+<script>
+'use strict';
+// 12 个风格 id 与展示名 —— 与 engine/theme.css 的 body.style-<id> 块一一对应
+const THEMES = [
+  { id: 'modern',    name: '现代极简' },
+  { id: 'book',      name: '书卷经典' },
+  { id: 'ancient',   name: '古风水墨' },
+  { id: 'light',     name: '轻小说清新' },
+  { id: 'fairytale', name: '童话剪纸' },
+  { id: 'noir',      name: '暗黑悬疑' },
+  { id: 'gothic',    name: '哥特恐怖' },
+  { id: 'dream',     name: '梦境意识流' },
+  { id: 'scifi',     name: '科幻霓虹' },
+  { id: 'steampunk', name: '蒸汽朋克' },
+  { id: 'visual',    name: '视觉小说' },
+  { id: 'western',   name: '西幻羊皮纸' },
+];
+const grid = document.getElementById('grid');
+const gameSel = document.getElementById('game');
+const galgameChk = document.getElementById('galgame');
+const reloadBtn = document.getElementById('reload');
+
+function cellUrl(id) {
+  const g = encodeURIComponent(gameSel.value || 'long_novel');
+  return `../games/${g}/index.html?theme=${encodeURIComponent(id)}`
+       + (galgameChk.checked ? '&galgame=1' : '');
+}
+
+function render() {
+  grid.innerHTML = '';
+  for (const t of THEMES) {
+    const cell = document.createElement('div');
+    cell.className = 'cell';
+    const bar = document.createElement('div');
+    bar.className = 'bar';
+    const b = document.createElement('b');
+    b.textContent = t.name;
+    const code = document.createElement('code');
+    code.textContent = t.id;
+    bar.append(b, code);
+    const iframe = document.createElement('iframe');
+    iframe.src = cellUrl(t.id);
+    iframe.loading = 'lazy';
+    cell.append(bar, iframe);
+    grid.appendChild(cell);
+  }
+}
+render();
+gameSel.addEventListener('change', render);
+galgameChk.addEventListener('change', render);
+reloadBtn.addEventListener('click', () => {
+  for (const f of grid.querySelectorAll('iframe')) f.src = cellUrl(f.src.match(/theme=([a-z0-9_-]+)/)[1]);
+});
+</script>
+</body>
+</html>

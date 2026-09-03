@@ -1,0 +1,1 @@
+{"mode_id": "fate", "theme_id": "ancient", "chunk_strategy": "按人物群×命运节点分块", "genre": "群像转生", "rationale": "多人物群像、身份差异大、主题与命运轮回相关，适合命运轮回模式"}

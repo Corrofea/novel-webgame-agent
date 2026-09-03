@@ -11,10 +11,13 @@
 import argparse
 import json
 import shutil
+import sys
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
+sys.path.insert(0, str(ROOT / 'core'))
+from utils import load_dotenv  # noqa: E402
 
 
 def record_expiry(book_id: str, artifact: str, ttl_minutes: int):
@@ -61,6 +64,7 @@ def upload_s3(zip_path: Path, ttl_minutes: int):
 
 
 def main():
+    load_dotenv()  # S3_* 等环境变量来自项目根目录 .env
     ap = argparse.ArgumentParser()
     ap.add_argument('zip_path')
     ap.add_argument('--backend', choices=['local', 's3'], default='local')

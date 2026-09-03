@@ -1,0 +1,64 @@
+{
+  "id": "galgame",
+  "name": "恋爱养成",
+  "适用": "恋爱/乙女/后宫向：立绘对话 + 好感度驱动 + 专属剧情与结局（参考 galgame 玩法）",
+  "selection_criteria": [
+    "恋爱/情感关系是核心驱动（攻略对象 ≥1 人，通常 1~4 人）",
+    "文本以对话为主（对白驱动，叙述比重低）",
+    "好感度/关系值决定剧情走向与结局",
+    "玩家通过选择表达态度，影响攻略对象关系",
+    "角色立绘/形象是游戏的记忆点"
+  ],
+  "chunk_strategy": {
+    "unit": "按角色线/好感阶段分块",
+    "method": "每条攻略线独立分块；共享部分（序章/共通线）单独一块；块间保留关系状态",
+    "decision_point_extraction": "从每块提取：好感度抉择（3~5 个选项潜力的心动场景）、关系转折点、攻略对象专属事件"
+  },
+  "extraction": {
+    "task": "把本块文本解构为情感事件素材：hearts（心动/互动场景：target 攻略对象/context 场景与氛围/quote 原文关键对话片段（≤40 字）/affection_delta 好感变化方向 正负/meaning 该互动对关系的影响）、dialogues（可复用的经典对白：speaker/line/context）、branch_points（路线分歧点：context/选项含义/通向哪条线）。全部引用原文，不创作；quote 保留原文原句。",
+    "schema": {
+      "items": [
+        {"kind": "heart", "target": "苏晴", "context": "雨天共撑一把伞回宿舍", "quote": "伞往你那边偏一点，别淋湿了。", "affection_delta": "positive", "meaning": "苏晴对主角的在意第一次显性化"},
+        {"kind": "dialogue", "speaker": "苏晴", "line": "你总是这样，什么都不说。", "context": "争吵后的深夜"},
+        {"kind": "branch_point", "context": "毕业晚会上", "options": ["当众表白", "默默守护"], "leads_to": "苏晴线 / 林晚线"}
+      ]
+    },
+    "uses": "design 阶段据此设计：hearts→好感度抉择场景（每场景 1~2 个互动选项）、dialogues→galgame 对话框台词（speaker 必填）、branch_points→路线分歧节点（好感度门槛）"
+  },
+  "design_guidance": {
+    "structure": "共通线 → 分攻略线（每线 4~8 场景）→ 好感度门槛决定进入哪条线 → 各线 1~2 个结局",
+    "branch_policy": "关键节点 2~3 个选项；好感度累积（affection_<角色id>），阈值触发专属场景/结局",
+    "affection": "每个攻略对象 1 条好感度（start 0，max 100）；选择影响 1~5 点；高好感解锁告白/专属结局，低好感触发坏结局",
+    "attributes": "可选：胆识/温柔/魅力等 0~3 个，影响部分选项",
+    "dialog": "场景以对话为主：speaker 必填；narration 为台词；每场景 1~2 个互动选项",
+    "pacing": "每 2~3 个场景一个心动抉择；共通线 3~5 场景；进入各线前必须有明确的路线分歧节点",
+    "portrait": "每个攻略对象 + 主角有立绘（characters.js 的 portrait 字段）"
+  },
+  "open_slots": [
+    "攻略对象 ← 人物卡中与主角情感线最深的 1~4 人",
+    "共通线 ← 序章/初遇部分",
+    "好感度事件 ← 原文的互动/约会/误会场景（合理扩展）",
+    "路线分歧 ← 关键抉择节点（好感度门槛）",
+    "结局 ← 每攻略对象 1~2 个（HE/BE）+ 共通坏结局"
+  ],
+  "qa_criteria": [
+    "所有选项有 goto 且目标存在",
+    "好感度阈值条件在可达路径上可达成（存在能积累足够好感的路径）",
+    "speaker 引用的角色存在于 characters.js",
+    "每条攻略线结局可达",
+    "结局数量 2~5，与 mode.js 的 endings 配置一致"
+  ],
+  "runtime": {
+    "mode_id": "galgame",
+    "mode_name": "恋爱养成",
+    "mechanics": ["choices", "affection", "galgame"],
+    "attributes": [],
+    "inventory": {"enabled": false, "limit": 20},
+    "panels": ["status", "choices"],
+    "perspectives": [],
+    "achievements": {"enabled": false},
+    "commentary": {"enabled": false},
+    "galgame": {"enabled": true},
+    "endings": {"min": 2, "max": 5}
+  }
+}

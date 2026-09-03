@@ -42,6 +42,48 @@
       "适用": "治愈/轻小说",
       "prompt_prefix": "cel shading anime style, clean linework, pastel color palette, soft lighting, gentle expressions, key visual quality",
       "negative": "photorealistic, dark horror, heavy texture"
+    },
+    {
+      "id": "engraving_book",
+      "name": "藏书铜版画",
+      "适用": "名著/正剧/史诗",
+      "prompt_prefix": "classic book engraving illustration, fine crosshatch linework, ivory paper texture, sepia and gold tones, vintage hardcover art, chiaroscuro depth",
+      "negative": "photorealistic, neon colors, modern clothing, digital gradients"
+    },
+    {
+      "id": "dark_gothic",
+      "name": "暗黑哥特",
+      "适用": "恐怖/克苏鲁/怪谈",
+      "prompt_prefix": "dark gothic horror illustration, deep black and purple palette, blood red accents, candlelight glow, arched cathedral motifs, eerie mist, occult atmosphere",
+      "negative": "bright cheerful colors, cartoon, pastel palette, daylight scene"
+    },
+    {
+      "id": "brass_steampunk",
+      "name": "黄铜蒸汽",
+      "适用": "蒸汽朋克/架空工业",
+      "prompt_prefix": "steampunk illustration, brass and copper machinery, riveted metal plates, gears and gauges, sepia workshop lighting, victorian industrial detail",
+      "negative": "sleek sci-fi neon, minimalist modern, clean white background"
+    },
+    {
+      "id": "dreamy_impasto",
+      "name": "梦幻厚涂晕染",
+      "适用": "意识流/心理/寓言",
+      "prompt_prefix": "dreamy watercolor impasto, soft blurred edges, misty blue and lavender palette, drifting paint blooms, ethereal light, surreal soft-focus atmosphere",
+      "negative": "sharp linework, photorealistic, harsh contrast, busy details"
+    },
+    {
+      "id": "paper_cut",
+      "name": "剪纸拼贴",
+      "适用": "童话/萌系治愈",
+      "prompt_prefix": "paper cutout collage illustration, layered textured paper, polka dot accents, berry red and cream palette, whimsical storybook charm, slight handcrafted wobble",
+      "negative": "photorealistic, 3d render, dark gothic, complex realistic shading"
+    },
+    {
+      "id": "jp_sunset",
+      "name": "日系黄昏",
+      "适用": "校园恋爱/视觉小说",
+      "prompt_prefix": "japanese visual novel key visual, sunset glow palette, warm amber and coral sky, gentle rim light, high quality anime illustration, cinematic composition",
+      "negative": "photorealistic, horror, desaturated colors, western cartoon"
     }
   ]
 }

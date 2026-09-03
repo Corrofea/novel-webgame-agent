@@ -1,0 +1,64 @@
+{
+  "id": "narrative",
+  "name": "章节叙事",
+  "适用": "章节结构分明的长/中篇小说：每一章内自由分支，章末汇聚到章节锚点（叙事可控），配进度条（参考 ClickMacondo）",
+  "selection_criteria": [
+    "文本有明确的章/卷结构（章节标记可解析，≥3 章）",
+    "每章是一个相对完整的叙事单元（有明确的起承转合）",
+    "希望玩家在大框架下自由抉择，但不让剧情失控",
+    "需要进度感（玩家知道自己走到全书百分之多少）"
+  ],
+  "chunk_strategy": {
+    "unit": "章（严格按章节边界切分，一章一块）",
+    "method": "逐章独立摘要；章内保留人物状态与伏笔标记；章与章之间只传递必要状态",
+    "decision_point_extraction": "从每章提取：2~4 个可重写走向的抉择、章末悬置（供锚点汇聚）、伏笔点"
+  },
+  "extraction": {
+    "task": "把本块（通常是一整章）文本解构为章轮廓：chapter_title（章节名）、decision_points（本章 2~4 个可重写走向的抉择点：context 原文转折处/options 可能的走向 2~3 个/affects 影响的角色或关系）、chapter_hook（章末悬置：本章结束时悬而未决的矛盾，供章节锚点汇聚）、foreshadows（本章埋下的伏笔：hint 原文线索/future 可能的回收点）。全部引用原文，不创作。",
+    "schema": {
+      "items": [
+        {"kind": "chapter", "chapter_title": "第三章 深夜来信", "decision_points": [{"context": "苏晴收到匿名恐吓信后", "options": ["当场报警", "隐瞒独自追查", "找陈默商量"], "affects": "苏晴好感/信任"}], "chapter_hook": "信上署名与十年前旧案相同", "foreshadows": [{"hint": "信纸边缘的暗纹", "future": "可能是旧案的标记"}]}
+      ]
+    },
+    "uses": "design 阶段据此设计：decision_points→章内分支场景、chapter_hook→章末锚点节点（chapter_end）的汇聚含义、foreshadows→后续章节的伏笔回收"
+  },
+  "design_guidance": {
+    "structure": "入口 → 第 1 章内分支 → 章末锚点节点(chapter_end) → 第 2 章 … → 终章 → 2~3 个最终结局",
+    "branch_policy": "章内每节点 2~3 个选项；分支必须在该章内回收——章内所有选择路径最终 goto 到同一章末锚点（chapter_end: true），保证叙事可控",
+    "chapter_anchor": "每章恰好 1 个章节锚点节点：chapter_end: true，代表该章核心结果（不同分支带不同 attrs/flags 到达）；锚点节点本身给 1 个推进到下一章的选项",
+    "affection": "1~3 个核心角色好感度，阈值触发章内专属剧情/结局",
+    "attributes": "属性 0~4 个，如勇气/智慧/声望，跨章累计，用于结局门槛",
+    "progress": "mode.chapter_progress.chapters 列出全部章节名（与 chapters.json 章节对应）；每个非锚点节点带 chapter 字段标注归属章节",
+    "pacing": "每章 3~6 个场景；每章至少 1 个抉择；开局 2 个场景内给出第一个选择"
+  },
+  "open_slots": [
+    "章节序列 ← chapters.json（章名列表 → chapter_progress.chapters）",
+    "剧情节点 ← 按章节切分，保留关键对话",
+    "决策点 ← 每章原文转折处，选项来自原文可能的走向（合理扩展）",
+    "章节锚点 ← 每章核心冲突的结算点（章末）",
+    "好感度对象 ← 与主角互动最深的 1~3 人",
+    "结局 ← 原文结局 + 合理变体（2~3 个）"
+  ],
+  "qa_criteria": [
+    "所有选项有 goto 且目标存在",
+    "每章分支全部汇聚到该章锚点（chapter_end: true 节点）；锚点存在且从入口可达",
+    "无跨章自由跳转（goto 只能指向本章内或下一章锚点；禁止跳到前面章节）",
+    "好感度阈值条件在可达路径上可达成",
+    "结局节点从入口可达，无死路",
+    "结局数量 2~3，与 mode.js 的 endings 配置一致",
+    "启用 chapter_progress 时，每个节点带 chapter 字段（警告级）"
+  ],
+  "runtime": {
+    "mode_id": "narrative",
+    "mode_name": "章节叙事",
+    "mechanics": ["choices", "affection", "chapter_progress"],
+    "attributes": [],
+    "inventory": {"enabled": false, "limit": 20},
+    "panels": ["status", "choices", "chapter_progress"],
+    "perspectives": [],
+    "achievements": {"enabled": false},
+    "commentary": {"enabled": false},
+    "chapter_progress": {"enabled": true, "chapters": []},
+    "endings": {"min": 2, "max": 3}
+  }
+}

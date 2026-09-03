@@ -1,5 +1,5 @@
 requests>=2.31
+# 生图转码 WebP（体积约为 PNG 的 1/5~1/10，为引擎默认图格式）
 Pillow>=10.0
-python-docx>=1.1
 # 可选：S3/R2 上传（pip install boto3）
 # boto3>=1.34

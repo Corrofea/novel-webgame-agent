@@ -1,7 +1,7 @@
 {
-  "id": "g1_narrative",
-  "name": "叙事冒险",
-  "适用": "小说/故事/剧本/网文：单主角、连续情节线、人物关系推动剧情",
+  "id": "classic",
+  "name": "经典叙事",
+  "适用": "小说/故事/剧本/网文：单主角、连续情节线、人物关系推动剧情（默认兜底模式）",
   "selection_criteria": [
     "有明确单一主角（或玩家代入位）",
     "情节以连续时间线推进，前后因果强",
@@ -12,6 +12,15 @@
     "unit": "章/卷（保持时间线顺序）",
     "method": "按章节分块，每块独立摘要；跨块保留人物状态与伏笔标记",
     "decision_point_extraction": "从每块提取：可重写原文走向的抉择（≥3 个选项的潜力）、人物情感转折、伏笔点"
+  },
+  "extraction": {
+    "task": "把本块文本解构为按时间顺序排列的场景单元列表。场景切分标准：时间连续 + 空间稳定 + 冲突/主题完整为一个单元，时间或空间明显跳跃则切新单元（粒度取中：一个完整事件/冲突为一个单元）。每个单元字段：summary（一句话，必须含起因→经过→结果的闭环，如「因XX，发生XX，导致XX」）、motivation（本场景发生的前因，可从原文推断）、characters（出场人物名数组）、location（主要地点）、time（原文明确时间；无法精确则写故事内相对时间）、key_event（核心事件一句话）、emotion（主导情绪，无显著描写写\"中性\"）、atmosphere（关键氛围一句话，无则空字符串）。只提取原文实际出现的内容，不创作。",
+    "schema": {
+      "items": [
+        {"summary": "因下雨路滑，两人在岔路口走散，导致次日才在县城重逢", "motivation": "前一天赶路错过了客栈", "characters": ["陈默", "苏晴"], "location": "山间岔路口", "time": "秋日午后", "key_event": "雨中走散", "emotion": "焦虑/担忧", "atmosphere": "雨雾笼罩的荒山小径"}
+      ]
+    },
+    "uses": "design 阶段按场景单元设计场景蓝图（每单元可展开 1~3 个场景节点）；summary 作为节点叙述底稿，emotion/atmosphere 辅助叙述基调与配图提示词，motivation 保证因果链不丢"
   },
   "design_guidance": {
     "structure": "入口场景 → 线性主干 + 分支 → 汇聚到 2~3 个最终结局",
@@ -34,8 +43,8 @@
     "结局数量 2~5，与 mode.js 的 endings 配置一致"
   ],
   "runtime": {
-    "mode_id": "g1_narrative",
-    "mode_name": "叙事冒险",
+    "mode_id": "classic",
+    "mode_name": "经典叙事",
     "mechanics": ["choices", "affection"],
     "attributes": [],
     "inventory": {"enabled": false, "limit": 20},

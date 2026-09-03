@@ -6,6 +6,7 @@
     { "name": "detect",      "worker": "detect", "note": "类型分析→模式选择→主题/基调（读开头3万字定判）" },
     { "name": "chunk",       "worker": "parse",  "note": "按模式分块（long 模式按卷/弧线分块）" },
     { "name": "summarize",   "worker": "world",  "note": "分卷摘要→全书世界观圣经（逐卷循环，上下文体量受控）" },
+    { "name": "extract",     "worker": "extract", "note": "按模式特异性解构文本素材（场景单元/谜题/事件池等 → bible/）" },
     { "name": "characters",  "worker": "world",  "note": "人物信息摘要（基于全部摘要而非原文）" },
     { "name": "style",       "worker": "world",  "note": "主旨/世界观/情感基调" },
     { "name": "game_init",   "worker": "tool",   "note": "游戏文件夹初始化" },

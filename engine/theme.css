@@ -1,17 +1,56 @@
-/* novel-webgame-agent 引擎基础样式
-   配色全部来自 CSS 变量（由 engine.js 按 data/theme.js 注入），
-   此处只负责布局与响应式，不写死任何业务颜色。 */
+/* novel-webgame-agent 引擎主题样式
+ *
+ * 视觉分层（theme 2.0）：
+ *   配色与质感的唯一权威 = 本文件底部 12 个 body.style-<id> 风格块。
+ *   data/theme.js 只存 {"name":"<id>"}（换肤开关），engine.js boot() 把
+ *   style-<name> 挂到 body 上，风格即生效——LLM 无任何输出颜色的通道。
+ *   :root 默认值是"中性基线"（无风格 class 时的观感），并作为旧产物
+ *   （theme.js 含 colors）走 engine.js 兼容注入后的回落底色。
+ *
+ * 变量语义：见各块定义。派生淡色一律 color-mix(in srgb, ...)，不另占变量。
+ * 本文件其余部分只承载布局与响应式，颜色只许来自 var()。
+ */
 
 :root {
-  --bg: #f5f5f5;
-  --panel: #ffffff;
-  --accent: #2196f3;
-  --accent-light: #90caf9;
+  /* 底色 */
+  --bg: #f5f5f5;            /* 页面底色 */
+  --bg-deep: #e8eaee;       /* 页面氛围第二色（渐变/深影用） */
+  --panel: #ffffff;         /* 主面板/卡片底 */
+  --panel-2: #eef1f5;       /* 次级条带底（chip/输入框/属性行/注释卡） */
+  /* 文字 */
   --text: #222222;
   --sub: #888888;
   --border: #dddddd;
+  /* 强调 */
+  --accent: #2196f3;
+  --accent-light: #90caf9;
+  --on-accent: #ffffff;     /* accent 上的文字 */
+  /* 状态 */
+  --ok: #2e7d32;
+  --warn: #b7791f;
+  --danger: #c0392b;
+  /* 字体 */
   --font-title: serif;
   --font-body: sans-serif;
+  --font-ui: sans-serif;
+  /* 形态 */
+  --radius-s: 8px;
+  --radius-m: 12px;
+  --shadow-panel: 0 4px 20px rgba(0,0,0,.06);
+  --shadow-float: 0 4px 16px rgba(0,0,0,.2);
+  /* 氛围自由层 */
+  --page-texture: none;            /* body::before 全屏纹理（background-image 值） */
+  --page-vignette: transparent;    /* body::after  全屏暗角（inset box-shadow 值） */
+  /* galgame 模式（.mode-galgame 段专用） */
+  --gal-stage-bg: #141414;
+  --gal-dialog-bg: rgba(10,10,10,.92);
+  --gal-surface-bg: rgba(0,0,0,.6);
+  --gal-border: rgba(255,255,255,.2);
+  --gal-text: #f5f5f5;
+  --gal-accent: #ffd166;
+  /* 自检终端 */
+  --term-bg: #111111;
+  --term-text: #7cfc00;
 }
 
 * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -25,33 +64,60 @@ body {
   line-height: 1.8;
 }
 
-#app { max-width: 900px; margin: 0 auto; min-height: 100vh; padding: 16px; }
+#app {
+  max-width: 900px; margin: 0 auto; min-height: 100vh; padding: 16px;
+  position: relative; z-index: 1;   /* 把内容抬到纹理层（body::before）之上 */
+}
 
 .screen { display: none; animation: fadein .4s ease; }
 .screen:first-of-type { display: block; }
 @keyframes fadein { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
 
+/* ---------- 背景氛围自由层 ----------
+   body::before = 纹理层（噪点/网格/波点等，盖在页面底与 bg 图之上、内容之下）；
+   body::after  = 暗角层（压在包括侧栏在内的一切之上，pointer-events:none 不挡交互）。
+   风格只需填 --page-texture / --page-vignette 两个变量。 */
+body::before {
+  content: ''; position: fixed; inset: 0; z-index: 0;
+  pointer-events: none; background-repeat: repeat;
+  background-image: var(--page-texture);
+}
+body::after {
+  content: ''; position: fixed; inset: 0; z-index: 998;
+  pointer-events: none;
+  box-shadow: inset 0 0 180px 60px var(--page-vignette);
+}
+
 /* ---------- 封面 ---------- */
 .cover { text-align: center; padding: 12vh 16px; }
 .cover-ornament { width: 64px; height: 64px; margin: 0 auto 24px; border: 2px solid var(--accent);
-  border-radius: 8px; position: relative; opacity: .8; }
+  border-radius: var(--radius-s); position: relative; opacity: .8; }
 .cover-ornament::after { content: ''; position: absolute; inset: 8px; border: 1px solid var(--accent); border-radius: 4px; }
 .cover-title { font-family: var(--font-title); font-size: 40px; color: var(--accent); margin-bottom: 8px; }
 .cover-sub { font-size: 16px; color: var(--sub); margin-bottom: 4px; }
 .cover-author { font-size: 14px; color: var(--sub); margin-bottom: 12px; }
 .cover-mode { display: inline-block; font-size: 13px; color: var(--accent); border: 1px solid var(--accent);
-  border-radius: 999px; padding: 2px 14px; margin-bottom: 40px; }
+  border-radius: 999px; padding: 2px 14px; margin-bottom: 40px; font-family: var(--font-ui); }
+.cover-warn { font-size: 12px; color: var(--danger);
+  background: color-mix(in srgb, var(--danger) 8%, var(--panel));
+  border: 1px solid color-mix(in srgb, var(--danger) 25%, transparent);
+  border-radius: var(--radius-s); padding: 6px 10px; max-width: 420px; margin: 0 auto 16px; line-height: 1.5; }
 .cover .btn { display: block; width: 240px; margin: 10px auto; }
+/* 封面主视觉（可选 assets/cover.png；引擎缺失时隐藏本层，主题纹理兜底）
+   z-index: -1 → 叠在主题暗角/纹理之下，质感层统一盖在上面 */
+.cover { position: relative; }
+.cover-art { position: fixed; inset: 0; z-index: -1; }
+.cover-art img { width: 100%; height: 100%; object-fit: cover; opacity: .3; }
 
 /* ---------- 通用按钮 ---------- */
-.btn { font-family: var(--font-body); font-size: 15px; padding: 10px 20px; border-radius: 8px;
+.btn { font-family: var(--font-ui); font-size: 15px; padding: 10px 20px; border-radius: var(--radius-s);
   border: 1px solid var(--border); background: var(--panel); color: var(--text); cursor: pointer; transition: all .15s; }
 .btn:hover { border-color: var(--accent); }
-.btn-primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+.btn-primary { background: var(--accent); border-color: var(--accent); color: var(--on-accent); }
 .btn-primary:hover { background: var(--accent-light); border-color: var(--accent-light); }
-.btn-danger { color: #c0392b; border-color: #e8b4ad; }
+.btn-danger { color: var(--danger); border-color: color-mix(in srgb, var(--danger) 40%, transparent); }
 .btn-small { font-size: 13px; padding: 4px 12px; margin: 0 4px 4px 0; }
-.btn.active { background: var(--accent); border-color: var(--accent); color: #fff; }
+.btn.active { background: var(--accent); border-color: var(--accent); color: var(--on-accent); }
 
 /* ---------- 场景 ---------- */
 .scene { position: relative; }
@@ -59,16 +125,26 @@ body {
 .bg-img { width: 100%; height: 100%; object-fit: cover; opacity: .35; }
 .bg-placeholder { background: linear-gradient(160deg, var(--panel), var(--bg)); }
 
-.scene-box { background: var(--panel); border: 1px solid var(--border); border-radius: 12px;
-  padding: 24px 28px; min-height: 60vh; box-shadow: 0 4px 20px rgba(0,0,0,.06); }
+.scene-box { background: var(--panel); border: 1px solid var(--border); border-radius: var(--radius-m);
+  padding: 24px 28px; min-height: 60vh; box-shadow: var(--shadow-panel); }
 
 .scene-titlebar { font-family: var(--font-title); font-size: 20px; color: var(--accent); margin-bottom: 8px; }
+
+/* ---------- 章节进度条（narrative 模式） ---------- */
+.chapter-progress { margin-bottom: 10px; }
+.chapter-progress-bar { height: 6px; background: var(--panel-2); border-radius: 3px; overflow: hidden; }
+.chapter-progress-fill { height: 100%; background: var(--accent); border-radius: 3px; transition: width .4s; }
+.chapter-progress-label { font-size: 12px; color: var(--sub); margin-top: 4px; }
+.chapter-divider { text-align: center; color: var(--accent); font-size: 13px;
+  border-top: 1px dashed var(--border); padding-top: 10px; margin-bottom: 16px; }
+
 .perspective-bar { margin-bottom: 8px; }
 .persp-label { font-size: 13px; color: var(--sub); margin-right: 6px; }
 
 .char-row { display: flex; flex-wrap: wrap; gap: 10px; margin-bottom: 16px; }
-.char-chip { display: inline-flex; align-items: center; gap: 8px; background: var(--bg);
-  border: 1px solid var(--border); border-radius: 999px; padding: 4px 14px 4px 6px; font-size: 14px; }
+.char-chip { display: inline-flex; align-items: center; gap: 8px; background: var(--panel-2);
+  border: 1px solid var(--border); border-radius: 999px; padding: 4px 14px 4px 6px; font-size: 14px;
+  font-family: var(--font-ui); }
 .char-portrait { width: 34px; height: 34px; border-radius: 50%; object-fit: cover; }
 
 .speaker { color: var(--accent); font-weight: 600; margin-bottom: 6px; min-height: 1.4em; }
@@ -78,48 +154,813 @@ body {
 .choices { display: flex; flex-direction: column; gap: 10px; }
 .choice { text-align: left; font-size: 15px; }
 .choice.locked { opacity: .55; cursor: not-allowed; text-decoration: line-through; }
-.error-box { color: #c0392b; border: 1px dashed #e8b4ad; padding: 10px 14px; border-radius: 8px; font-size: 14px; }
+.error-box { color: var(--danger);
+  border: 1px dashed color-mix(in srgb, var(--danger) 40%, transparent);
+  padding: 10px 14px; border-radius: var(--radius-s); font-size: 14px; }
 
 /* ---------- 侧栏：属性 / 物品 / 旁批 ---------- */
 .side-panel { position: fixed; top: 16px; right: 16px; width: 220px; z-index: 10; }
 .status-panel, .inventory-panel, .commentary {
-  background: var(--panel); border: 1px solid var(--border); border-radius: 10px;
+  background: var(--panel); border: 1px solid var(--border); border-radius: var(--radius-m);
   padding: 12px 14px; margin-bottom: 12px; max-height: 42vh; overflow-y: auto; }
-.panel-title { font-size: 13px; color: var(--sub); border-bottom: 1px solid var(--border); padding-bottom: 6px; margin-bottom: 8px; }
+.panel-title { font-size: 13px; color: var(--sub); border-bottom: 1px solid var(--border); padding-bottom: 6px; margin-bottom: 8px; font-family: var(--font-ui); }
 .attr-row { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; font-size: 13px; }
 .attr-label { flex: 0 0 auto; min-width: 64px; }
-.attr-bar { flex: 1; height: 8px; background: var(--bg); border-radius: 4px; overflow: hidden; }
+.attr-bar { flex: 1; height: 8px; background: var(--panel-2); border-radius: 4px; overflow: hidden; }
 .attr-fill { height: 100%; background: var(--accent); border-radius: 4px; transition: width .3s; }
 .attr-val { flex: 0 0 auto; font-variant-numeric: tabular-nums; }
 .inv-item { font-size: 13px; padding: 4px 0; border-bottom: 1px dashed var(--border); }
-.comment-card { font-size: 13px; border-left: 3px solid var(--accent); padding: 6px 10px; margin-bottom: 8px; background: var(--bg); }
+.comment-card { font-size: 13px; border-left: 3px solid var(--accent); padding: 6px 10px; margin-bottom: 8px; background: var(--panel-2); }
 .comment-choice { color: var(--accent); }
 .comment-original { color: var(--sub); }
 .comment-note { margin-top: 4px; }
 .side-reset { width: 100%; margin-top: 4px; }
 
+/* ---------- riddle 字谜 ---------- */
+.riddle-question { font-size: 17px; margin-bottom: 16px; line-height: 1.9; }
+.riddle-tiles { display: flex; gap: 8px; flex-wrap: wrap; justify-content: center; margin-bottom: 18px; }
+.riddle-tile { width: 44px; height: 52px; display: inline-flex; align-items: center; justify-content: center;
+  font-size: 24px; font-weight: 600; background: var(--panel-2); border: 2px solid var(--accent-light);
+  border-radius: var(--radius-s); color: var(--accent); transition: all .25s; }
+.riddle-tile.revealed { background: var(--accent); border-color: var(--accent); color: var(--on-accent); }
+.riddle-input-row { display: flex; gap: 10px; justify-content: center; align-items: center; margin-bottom: 14px; }
+.riddle-input { width: 80px; height: 40px; text-align: center; font-size: 20px;
+  border: 1px solid var(--border); border-radius: var(--radius-s); background: var(--panel); color: var(--text); font-family: var(--font-ui); }
+.riddle-input:focus { outline: none; border-color: var(--accent); }
+.riddle-hint { text-align: center; color: var(--sub); font-size: 14px; min-height: 1.6em; margin-bottom: 10px; }
+.riddle-solved { text-align: center; color: var(--ok); font-weight: 600; margin-bottom: 10px; }
+.riddle-solved + .btn { margin: 0 auto; display: block; }
+
+/* ---------- fate 转生抽取 / 命运事件 ---------- */
+.fate-draw { max-width: 480px; margin: 6vh auto; text-align: center; }
+.fate-identity { background: var(--panel-2); border: 1px solid var(--border); border-radius: var(--radius-m);
+  padding: 12px 16px; margin-bottom: 10px; text-align: left; }
+.fate-identity.picked { border-color: var(--accent); background: var(--panel); }
+.fate-identity-name { font-weight: 600; color: var(--accent); margin-bottom: 4px; }
+.fate-identity-desc { font-size: 13px; color: var(--sub); }
+.fate-event { text-align: center; padding: 14vh 16px; }
+.fate-event .narration { max-width: 520px; margin: 0 auto 24px; font-size: 16px; }
+
+/* ---------- survival 初始点数分配 ---------- */
+.allocation { max-width: 480px; margin: 6vh auto; text-align: center; }
+.allocation .cover-ornament { margin-bottom: 18px; }
+.alloc-title { font-family: var(--font-title); font-size: 26px; color: var(--accent); margin-bottom: 8px; }
+.alloc-sub { color: var(--sub); font-size: 14px; margin-bottom: 16px; }
+.alloc-remain { font-size: 15px; color: var(--accent); font-weight: 600; margin-bottom: 14px; }
+.alloc-list { display: flex; flex-direction: column; gap: 10px; margin-bottom: 20px; }
+.alloc-row { display: flex; align-items: center; justify-content: center; gap: 12px;
+  background: var(--panel-2); border: 1px solid var(--border); border-radius: var(--radius-m); padding: 10px 16px; }
+.alloc-label { flex: 1; text-align: left; font-size: 14px; }
+.alloc-val { min-width: 32px; font-variant-numeric: tabular-nums; font-weight: 600; }
+.alloc-actions { display: flex; gap: 10px; justify-content: center; }
+.alloc-actions .btn { width: 130px; }
+
 /* ---------- 结局 ---------- */
 .ending { text-align: center; padding: 14vh 16px; }
 .ending-type { display: inline-block; font-size: 14px; padding: 2px 16px; border-radius: 999px;
-  border: 1px solid var(--accent); color: var(--accent); margin-bottom: 16px; }
-.ending-type.good { color: #2e7d32; border-color: #81c784; }
-.ending-type.bad { color: #c0392b; border-color: #e8b4ad; }
+  border: 1px solid var(--accent); color: var(--accent); margin-bottom: 16px; font-family: var(--font-ui); }
+.ending-type.good { color: var(--ok); border-color: color-mix(in srgb, var(--ok) 50%, transparent); }
+.ending-type.bad { color: var(--danger); border-color: color-mix(in srgb, var(--danger) 50%, transparent); }
 .ending h2 { font-family: var(--font-title); font-size: 34px; margin-bottom: 16px; }
 .ending-desc { max-width: 480px; margin: 0 auto 24px; color: var(--text); }
 .ending .btn { width: 240px; display: block; margin: 10px auto; }
 
-.ending-card { border: 1px solid var(--border); border-radius: 10px; padding: 14px 18px;
+.ending-card { border: 1px solid var(--border); border-radius: var(--radius-m); padding: 14px 18px;
   margin: 10px auto; max-width: 440px; text-align: left; background: var(--panel); }
 .ending-type { display: inline-block; margin-bottom: 4px; }
 
 /* ---------- 提示与错误 ---------- */
 .hint { position: fixed; left: 50%; bottom: 40px; transform: translateX(-50%);
-  background: var(--accent); color: #fff; padding: 8px 20px; border-radius: 999px; font-size: 14px;
-  box-shadow: 0 4px 16px rgba(0,0,0,.2); z-index: 99; animation: fadein .3s; }
-.error { text-align: center; padding: 20vh 16px; color: #c0392b; }
+  background: var(--accent); color: var(--on-accent); padding: 8px 20px; border-radius: 999px; font-size: 14px;
+  box-shadow: var(--shadow-float); z-index: 99; animation: fadein .3s; font-family: var(--font-ui); }
+.error { text-align: center; padding: 20vh 16px; color: var(--danger); }
 .selftest { padding: 24px; }
-.selftest-log { background: #111; color: #7cfc00; padding: 16px; border-radius: 8px;
+.selftest-log { background: var(--term-bg); color: var(--term-text); padding: 16px; border-radius: var(--radius-s);
   font-size: 12px; white-space: pre-wrap; max-height: 60vh; overflow: auto; text-align: left; }
+
+/* ---------- galgame 模式：立绘对话排版 ---------- */
+.mode-galgame .bg-layer { background: var(--gal-stage-bg); }
+.mode-galgame .scene-box { border: none; box-shadow: none; background: transparent; padding-bottom: 260px; }
+.mode-galgame .scene-titlebar { color: var(--gal-text); text-align: center; }
+.mode-galgame .char-row { position: fixed; bottom: 0; left: 50%; transform: translateX(-50%);
+  width: min(900px, 100vw); justify-content: center; align-items: flex-end; z-index: 1; pointer-events: none; }
+.mode-galgame .char-chip { background: transparent; border: none; border-radius: 0; padding: 0;
+  display: flex; flex-direction: column; align-items: center; gap: 2px; }
+.mode-galgame .char-portrait { width: 220px; height: auto; max-height: 56vh; object-fit: contain;
+  border-radius: var(--radius-s); box-shadow: 0 -8px 30px rgba(0,0,0,.5); }
+.mode-galgame .char-chip span { display: none; }  /* 名字移到对话框内，不叠在立绘上 */
+.mode-galgame .speaker { position: fixed; left: 50%; bottom: 168px; transform: translateX(-50%);
+  width: min(760px, 92vw); color: var(--gal-accent); font-size: 17px; z-index: 6; text-shadow: 0 1px 4px rgba(0,0,0,.8); }
+.mode-galgame .narration { position: fixed; left: 50%; bottom: 14px; transform: translateX(-50%);
+  width: min(760px, 94vw); background: var(--gal-dialog-bg); border: 1px solid var(--gal-border);
+  border-radius: var(--radius-m); padding: 16px 22px 18px; z-index: 5; color: var(--gal-text); }
+.mode-galgame .narration .para { text-indent: 0; margin-bottom: 6px; }
+.mode-galgame .choices { position: fixed; left: 50%; bottom: 150px; transform: translateX(-50%);
+  width: min(760px, 94vw); z-index: 7; gap: 6px; }
+.mode-galgame .choice { background: var(--gal-surface-bg); border: 1px solid var(--gal-border);
+  color: var(--gal-text); border-radius: 999px; padding: 6px 18px; text-align: center; font-size: 14px; }
+.mode-galgame .choice:hover { border-color: var(--gal-accent); }
+.mode-galgame .choice.locked { opacity: .4; }
+.mode-galgame .side-panel { top: auto; bottom: 16px; right: 16px; width: 200px; }
+.mode-galgame .status-panel { background: var(--gal-surface-bg); border-color: var(--gal-border); color: var(--gal-text); }
+.mode-galgame .panel-title { color: var(--gal-text); border-bottom-color: var(--gal-border); }
+.mode-galgame .attr-bar { background: rgba(255,255,255,.15); }
+
+/* ============================================================
+   style-modern 现代极简
+   冷白空间 · 单一品牌蓝 · 瑞士网格 · 无装饰。无纹理无暗角，干净即风格。
+   ============================================================ */
+body.style-modern {
+  --bg: #f7f9fb;
+  --bg-deep: #e9eef4;
+  --panel: #ffffff;
+  --panel-2: #eef2f7;
+  --text: #0f172a;
+  --sub: #64748b;
+  --border: #e2e8f0;
+  --accent: #2563eb;
+  --accent-light: #60a5fa;
+  --on-accent: #ffffff;
+  --ok: #059669;
+  --warn: #d97706;
+  --danger: #dc2626;
+  --font-title: 'PingFang SC','Microsoft YaHei',system-ui,sans-serif;
+  --font-body: 'PingFang SC',system-ui,sans-serif;
+  --font-ui: 'PingFang SC','Microsoft YaHei',system-ui,sans-serif;
+  --radius-s: 6px;
+  --radius-m: 10px;
+  --shadow-panel: 0 1px 2px rgba(2,6,23,.04), 0 8px 24px rgba(2,6,23,.06);
+  --shadow-float: 0 4px 12px rgba(2,6,23,.16);
+  --page-texture: none;
+  --page-vignette: transparent;
+  --gal-stage-bg: #e9eef4;
+  --gal-dialog-bg: rgba(255,255,255,.85);
+  --gal-surface-bg: rgba(255,255,255,.92);
+  --gal-border: rgba(15,23,42,.14);
+  --gal-text: #0f172a;
+  --gal-accent: #2563eb;
+}
+/* 质感：卡片顶部 1px 白内高光细线；ornament 细单线圆环 + 中心圆点 */
+body.style-modern .scene-box,
+body.style-modern .status-panel, body.style-modern .inventory-panel, body.style-modern .commentary,
+body.style-modern .ending-card {
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.7), var(--shadow-panel);
+}
+body.style-modern .cover-ornament { border-width: 1px; }
+body.style-modern .cover-ornament::after {
+  inset: auto; top: 50%; left: 50%; width: 4px; height: 4px;
+  border: none; border-radius: 50%; background: var(--accent);
+  transform: translate(-50%, -50%);
+}
+body.style-modern .cover-title { font-weight: 700; letter-spacing: .02em; }
+body.style-modern .btn-primary { box-shadow: 0 1px 2px rgba(37,99,235,.3); }
+/* galgame：信息界面型亮色玻璃 */
+body.style-modern.mode-galgame .narration,
+body.style-modern.mode-galgame .choice { backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px); }
+body.style-modern.mode-galgame .attr-bar { background: rgba(15,23,42,.1); }
+
+/* ============================================================
+   style-book 书卷经典（移植 ClickMacondo 装帧：深黑褐书房里一本摊开的旧书）
+   象牙书页 + 三档鎏金 + 纸张噪点 + 书页横纹 + 强暗角
+   ============================================================ */
+body.style-book {
+  --bg: #171208;
+  --bg-deep: #0f0b06;
+  --panel: #f7efdc;
+  --panel-2: #efe2c8;
+  --text: #1a0f08;
+  --sub: #5c4a3b;
+  --border: #b8956a;
+  --accent: #b8893e;
+  --accent-light: #e8c870;
+  --on-accent: #241a0e;
+  --ok: #4c7a5c;
+  --warn: #b7791f;
+  --danger: #9c3b26;
+  --font-title: Georgia,'Times New Roman','Noto Serif SC','Songti SC',serif;
+  --font-body: Georgia,'Times New Roman','Noto Serif SC','Songti SC',serif;
+  --font-ui: Georgia,'Times New Roman','Noto Serif SC','Songti SC',serif;
+  --radius-s: 4px;
+  --radius-m: 8px;
+  --shadow-panel: 0 10px 30px rgba(0,0,0,.45);
+  --shadow-float: 0 4px 16px rgba(0,0,0,.5);
+  --page-texture: url("data:image/svg+xml;utf8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.65' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.03'/%3E%3C/svg%3E"), repeating-linear-gradient(0deg, transparent 0 2px, rgba(139,105,20,.02) 2px 4px);
+  --page-vignette: rgba(0,0,0,.55);
+  --gal-stage-bg: #0f0b06;
+  --gal-dialog-bg: rgba(23,18,8,.94);
+  --gal-surface-bg: rgba(0,0,0,.5);
+  --gal-border: rgba(232,200,112,.28);
+  --gal-text: #f7efdc;
+  --gal-accent: #e8c870;
+}
+/* 质感：书页立体（象牙页 + 内高光，阴影落向书桌）；ornament 圆形金徽章 */
+body.style-book .scene-box {
+  border-color: #b8956a;
+  box-shadow: inset 0 1px 0 rgba(255,252,240,.5), 0 10px 30px rgba(0,0,0,.45);
+}
+body.style-book .cover-ornament {
+  border-radius: 50%; border-color: var(--accent);
+  box-shadow: inset 0 0 0 1px rgba(232,200,112,.35);
+}
+body.style-book .cover-ornament::after { inset: 9px; border-color: var(--accent-light); }
+body.style-book .cover-title {
+  border-bottom: 1px solid color-mix(in srgb, var(--accent) 45%, transparent);
+  display: inline-block; padding-bottom: 10px; letter-spacing: .06em;
+}
+body.style-book .btn-primary {
+  background: linear-gradient(180deg, #d3a75c, #a87c30);
+  border-color: #a87c30; color: #241a0e;
+}
+body.style-book .btn-primary:hover { background: linear-gradient(180deg, #e8c870, #b8893e); }
+body.style-book .status-panel, body.style-book .inventory-panel, body.style-book .commentary,
+body.style-book .ending-card { background: #f7efdc; box-shadow: 0 4px 16px rgba(0,0,0,.35); }
+body.style-book .speaker { color: #b8893e; }
+/* galgame：深夜书房视觉小说 */
+body.style-book.mode-galgame .attr-bar { background: rgba(255,255,255,.18); }
+body.style-book.mode-galgame .choice:hover { background: rgba(232,200,112,.12); }
+
+/* ============================================================
+   style-ancient 古风水墨
+   素绢宣纸 · 淡墨晕染 · 朱砂点睛 · 册页留白（无暗角，留白即风格）
+   ============================================================ */
+body.style-ancient {
+  --bg: #f4efe3;
+  --bg-deep: #e4d9c2;
+  --panel: #fbf7ec;
+  --panel-2: #efe5cf;
+  --text: #32281e;
+  --sub: #6f6252;
+  --border: #cbbf9f;
+  --accent: #7a1f1f;
+  --accent-light: #c2704f;
+  --on-accent: #fdf6ea;
+  --ok: #3e7a5e;
+  --warn: #a5712a;
+  --danger: #8a2f2f;
+  --font-title: 'STKaiti','KaiTi','Noto Serif SC',serif;
+  --font-body: 'STSong','SimSun','Noto Serif SC',serif;
+  --font-ui: 'KaiTi','STKaiti','SimSun',serif;
+  --radius-s: 4px;
+  --radius-m: 6px;
+  --shadow-panel: 0 2px 10px rgba(74,52,20,.08);
+  --shadow-float: 0 4px 16px rgba(74,52,20,.18);
+  --page-texture: radial-gradient(120% 50% at 50% 0%, rgba(122,31,31,.05), transparent 62%),
+    url("data:image/svg+xml;utf8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='200' height='200'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.5' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.04'/%3E%3C/svg%3E"),
+    repeating-linear-gradient(0deg, transparent 0 3px, rgba(122,80,30,.015) 3px 4px);
+  --page-vignette: transparent;
+  --gal-stage-bg: #2a231c;
+  --gal-dialog-bg: rgba(251,247,236,.95);
+  --gal-surface-bg: rgba(251,247,236,.82);
+  --gal-border: rgba(197,168,120,.55);
+  --gal-text: #32281e;
+  --gal-accent: #b8543a;
+}
+/* 质感：面板细双线（装帧感）；封面朱砂方章；楷体稀字距标题 */
+body.style-ancient .scene-box,
+body.style-ancient .status-panel, body.style-ancient .inventory-panel, body.style-ancient .commentary,
+body.style-ancient .ending-card {
+  border: 1px double var(--border);
+}
+body.style-ancient .cover-ornament {
+  border-radius: var(--radius-s);
+  background: color-mix(in srgb, var(--accent) 7%, transparent);
+}
+body.style-ancient .cover-ornament::after { inset: 7px; border-width: 1px; }
+body.style-ancient .cover-title { letter-spacing: .28em; font-weight: 600; }
+body.style-ancient .btn-primary { letter-spacing: .12em; }
+/* galgame：绢面对话框 + 墨字（chrome 为象牙底，属性轨改深色） */
+body.style-ancient.mode-galgame .attr-bar { background: rgba(0,0,0,.14); }
+
+/* ============================================================
+   style-light 轻小说清新
+   奶油底 · 草莓粉 · 大柔焦光斑 · 圆润贴纸感
+   ============================================================ */
+body.style-light {
+  --bg: #fff7f2;
+  --bg-deep: #ffe9dc;
+  --panel: #ffffff;
+  --panel-2: #fff1ea;
+  --text: #4a4453;
+  --sub: #a99aa8;
+  --border: #f6dfd6;
+  --accent: #ff6b8a;
+  --accent-light: #ffb7c4;
+  --on-accent: #ffffff;
+  --ok: #3fb27f;
+  --warn: #cf8618;
+  --danger: #e5484d;
+  --font-title: 'Yuanti SC','YouYuan','PingFang SC',sans-serif;
+  --font-body: 'PingFang SC',sans-serif;
+  --font-ui: 'Yuanti SC','YouYuan','PingFang SC',sans-serif;
+  --radius-s: 12px;
+  --radius-m: 18px;
+  --shadow-panel: 0 8px 24px rgba(244,143,177,.14);
+  --shadow-float: 0 6px 20px rgba(244,143,177,.25);
+  --page-texture: radial-gradient(620px at 12% 8%, rgba(255,183,196,.5), transparent 60%),
+    radial-gradient(560px at 88% 92%, rgba(255,214,170,.45), transparent 60%);
+  --page-vignette: transparent;
+  --gal-stage-bg: #f9dde3;
+  --gal-dialog-bg: rgba(255,255,255,.94);
+  --gal-surface-bg: rgba(255,255,255,.9);
+  --gal-border: rgba(255,107,138,.4);
+  --gal-text: #4a4453;
+  --gal-accent: #ff6b8a;
+}
+/* 质感：卡片内白高光 + 彩影；按钮/选项胶囊 + hover 微浮 */
+body.style-light .scene-box,
+body.style-light .status-panel, body.style-light .inventory-panel, body.style-light .commentary,
+body.style-light .ending-card {
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.9), var(--shadow-panel);
+}
+body.style-light .btn, body.style-light .choice { border-radius: 999px; }
+body.style-light .btn:hover { transform: translateY(-1px); border-color: var(--accent-light); }
+/* 封面：两枚小圆扣（旋转方块贴纸 + 圆点） */
+body.style-light .cover-ornament { border-radius: 50%; }
+body.style-light .cover-ornament::before {
+  content: ''; position: absolute; top: -7px; right: -7px; width: 16px; height: 16px;
+  background: var(--accent); border-radius: 3px; transform: rotate(45deg); opacity: .75;
+}
+body.style-light .cover-ornament::after {
+  inset: auto; top: 50%; left: 50%; width: 12px; height: 12px;
+  border: none; border-radius: 50%; background: var(--accent-light);
+  transform: translate(-50%, -50%);
+}
+body.style-light .cover-title { font-weight: 700; letter-spacing: .08em; }
+/* galgame：亮粉 galgame（属性轨改深色） */
+body.style-light.mode-galgame .attr-bar { background: rgba(0,0,0,.08); }
+
+/* ============================================================
+   style-fairytale 童话剪纸
+   奶油纸 · 莓果红 · 波点底 · 剪纸拼贴厚影 · 手作感
+   ============================================================ */
+body.style-fairytale {
+  --bg: #fff8ec;
+  --bg-deep: #ffe9cf;
+  --panel: #ffffff;
+  --panel-2: #fff3e2;
+  --text: #5b4636;
+  --sub: #a98f76;
+  --border: #f3d9c4;
+  --accent: #e0535f;
+  --accent-light: #f79ba0;
+  --on-accent: #ffffff;
+  --ok: #5f9e4e;
+  --warn: #d98a1f;
+  --danger: #cf4f3f;
+  --font-title: 'Yuanti SC','YouYuan','PingFang SC',sans-serif;
+  --font-body: 'PingFang SC',sans-serif;
+  --font-ui: 'Yuanti SC','YouYuan','PingFang SC',sans-serif;
+  --radius-s: 14px;
+  --radius-m: 20px;
+  --shadow-panel: 0 10px 24px rgba(224,83,95,.12);
+  --shadow-float: 0 6px 18px rgba(224,83,95,.22);
+  --page-texture: url("data:image/svg+xml;utf8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='22' height='22'%3E%3Ccircle cx='5.5' cy='5.5' r='1.7' fill='rgba(224,83,95,0.14)'/%3E%3Ccircle cx='16.5' cy='16.5' r='1.7' fill='rgba(224,83,95,0.14)'/%3E%3C/svg%3E");
+  --page-vignette: transparent;
+  --gal-stage-bg: #fde7e2;
+  --gal-dialog-bg: rgba(255,255,255,.93);
+  --gal-surface-bg: rgba(255,255,255,.92);
+  --gal-border: rgba(224,83,95,.35);
+  --gal-text: #5b4636;
+  --gal-accent: #e0535f;
+}
+/* 质感：贴纸按钮（实心同色厚边 = 剪纸厚度）；面板波点花边双线；❀ 封面 */
+body.style-fairytale .btn, body.style-fairytale .choice { border-radius: 999px; }
+body.style-fairytale .btn {
+  box-shadow: 0 3px 0 color-mix(in srgb, var(--accent) 30%, transparent);
+}
+body.style-fairytale .btn-primary {
+  box-shadow: 0 3px 0 color-mix(in srgb, var(--accent) 60%, #000000);
+}
+body.style-fairytale .btn:hover { transform: translateY(-1px); }
+body.style-fairytale .scene-box,
+body.style-fairytale .status-panel, body.style-fairytale .inventory-panel, body.style-fairytale .commentary,
+body.style-fairytale .ending-card { border: 2px double var(--border); }
+body.style-fairytale .cover-ornament {
+  border-radius: 50%;
+  background: color-mix(in srgb, var(--accent) 10%, #ffffff);
+  border-color: var(--accent-light);
+}
+body.style-fairytale .cover-ornament::before {
+  content: '❀'; position: absolute; inset: 0;
+  font-size: 34px; line-height: 1.55; text-align: center; color: var(--accent);
+}
+body.style-fairytale .cover-ornament::after { display: none; }
+body.style-fairytale .cover-title { font-weight: 700; letter-spacing: .06em; }
+body.style-fairytale .ending-card { transition: transform .2s; }
+body.style-fairytale .ending-card:hover { transform: rotate(.4deg); }
+/* galgame：奶油对话框 + 粉波点边 */
+body.style-fairytale.mode-galgame .attr-bar { background: rgba(0,0,0,.08); }
+
+/* ============================================================
+   style-noir 暗黑悬疑
+   全黑舞台 · 琥珀单点光 · 胶片颗粒 + 斜雨丝 · 强反差
+   ============================================================ */
+body.style-noir {
+  --bg: #0c0c0c;
+  --bg-deep: #050505;
+  --panel: #181818;
+  --panel-2: #222222;
+  --text: #e6e0d0;
+  --sub: #8a8678;
+  --border: #333333;
+  --accent: #d4a017;
+  --accent-light: #e6c35c;
+  --on-accent: #141006;
+  --ok: #5fae6b;
+  --warn: #b7791f;
+  --danger: #c9443f;
+  --font-title: Georgia,'Times New Roman',serif;
+  --font-body: 'PingFang SC',sans-serif;
+  --font-ui: 'PingFang SC',sans-serif;
+  --radius-s: 4px;
+  --radius-m: 6px;
+  --shadow-panel: 0 12px 32px rgba(0,0,0,.55);
+  --shadow-float: 0 6px 20px rgba(0,0,0,.7);
+  --page-texture: url("data:image/svg+xml;utf8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.07'/%3E%3C/svg%3E"),
+    repeating-linear-gradient(115deg, transparent 0 3px, rgba(255,255,255,.015) 3px 4px);
+  --page-vignette: rgba(0,0,0,.85);
+  --gal-stage-bg: #050505;
+  --gal-dialog-bg: rgba(13,13,13,.96);
+  --gal-surface-bg: rgba(0,0,0,.6);
+  --gal-border: rgba(212,160,23,.35);
+  --gal-text: #e6e0d0;
+  --gal-accent: #d4a017;
+}
+/* 质感：单侧琥珀光源 + 细硬边面板 + 选项 hover 左移（拨胶片） */
+body.style-noir .bg-layer {
+  background: radial-gradient(800px at 22% 35%, rgba(212,160,23,.06), transparent 60%), var(--bg);
+}
+body.style-noir .scene-box,
+body.style-noir .status-panel, body.style-noir .inventory-panel, body.style-noir .commentary,
+body.style-noir .ending-card { border-color: #262626; }
+body.style-noir .cover-ornament { border-radius: 2px; }
+body.style-noir .cover-ornament::after { inset: 9px; border-color: color-mix(in srgb, var(--accent) 55%, transparent); }
+body.style-noir .cover-title { letter-spacing: .18em; }
+body.style-noir .choice { transition: all .18s; }
+body.style-noir .choice:hover { transform: translateX(-2px); }
+body.style-noir.mode-galgame .attr-bar { background: rgba(255,255,255,.16); }
+
+/* ============================================================
+   style-gothic 哥特恐怖
+   黑紫雾霭 · 惨白月光与烛血红 · 尖拱 · 优雅的压迫感
+   ============================================================ */
+body.style-gothic {
+  --bg: #150c13;
+  --bg-deep: #0a0609;
+  --panel: #221622;
+  --panel-2: #2a1a28;
+  --text: #ddd0d8;
+  --sub: #8f7d88;
+  --border: #3a2533;
+  --accent: #a31621;
+  --accent-light: #d94f5e;
+  --on-accent: #ffe9ea;
+  --ok: #7fae7f;
+  --warn: #b7791f;
+  --danger: #8f1d2c;
+  --font-title: Georgia,'Noto Serif SC','Songti SC',serif;
+  --font-body: 'Noto Serif SC','Songti SC','STSong',serif;
+  --font-ui: 'Noto Serif SC','Songti SC',serif;
+  --radius-s: 4px;
+  --radius-m: 8px;
+  --shadow-panel: 0 14px 34px rgba(0,0,0,.6);
+  --shadow-float: 0 8px 24px rgba(0,0,0,.7);
+  --page-texture: url("data:image/svg+xml;utf8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.7' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.08'/%3E%3C/svg%3E");
+  --page-vignette: rgba(0,0,0,.75);
+  --gal-stage-bg: #0a0609;
+  --gal-dialog-bg: rgba(24,10,14,.95);
+  --gal-surface-bg: rgba(0,0,0,.6);
+  --gal-border: rgba(163,22,33,.55);
+  --gal-text: #ddd0d8;
+  --gal-accent: #cdd6e8;
+}
+/* 质感：底部紫雾 + 月光单点光；尖拱封面；暗天鹅绒面板带烛光内高光 */
+body.style-gothic .bg-layer {
+  background: radial-gradient(120% 70% at 50% 115%, rgba(88,28,60,.5), transparent 55%),
+    radial-gradient(600px at 78% 12%, rgba(205,214,232,.06), transparent 60%), var(--bg);
+}
+body.style-gothic .scene-box,
+body.style-gothic .status-panel, body.style-gothic .inventory-panel, body.style-gothic .commentary,
+body.style-gothic .ending-card {
+  border-color: #2e1d27;
+  box-shadow: inset 0 1px 0 rgba(255,180,150,.05), var(--shadow-panel);
+}
+body.style-gothic .cover-ornament {
+  border-radius: 50% 50% 8px 8px / 62% 62% 8px 8px;
+  border-color: var(--accent);
+}
+body.style-gothic .cover-ornament::after { inset: 8px; border-radius: inherit; }
+body.style-gothic .cover-title {
+  letter-spacing: .3em; text-shadow: 0 0 24px color-mix(in srgb, var(--accent) 45%, transparent);
+}
+body.style-gothic .choice:hover { background: color-mix(in srgb, var(--accent) 12%, transparent); }
+body.style-gothic.mode-galgame .attr-bar { background: rgba(255,255,255,.15); }
+
+/* ============================================================
+   style-dream 梦境意识流
+   雾蓝灰白 · 水彩洇染 · 磨砂玻璃 · 失重（细字重 · 稀字距）
+   ============================================================ */
+body.style-dream {
+  --bg: #dfe7ef;
+  --bg-deep: #c9d6e4;
+  --panel: rgba(255,255,255,.6);
+  --panel-2: rgba(255,255,255,.45);
+  --text: #3c4254;
+  --sub: #7f8aa0;
+  --border: rgba(255,255,255,.7);
+  --accent: #5b6ea6;
+  --accent-light: #aab8d9;
+  --on-accent: #f4f7fc;
+  --ok: #6fa98c;
+  --warn: #b78a4a;
+  --danger: #b06a72;
+  --font-title: 'Kaiti SC','KaiTi','Noto Serif SC',serif;
+  --font-body: 'PingFang SC',sans-serif;
+  --font-ui: 'PingFang SC',sans-serif;
+  --radius-s: 10px;
+  --radius-m: 18px;
+  --shadow-panel: 0 12px 40px rgba(90,110,150,.12);
+  --shadow-float: 0 8px 24px rgba(90,110,150,.18);
+  --page-texture: url("data:image/svg+xml;utf8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='300' height='300'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.012' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.5'/%3E%3C/svg%3E"),
+    radial-gradient(900px at 20% 15%, rgba(141,123,176,.14), transparent 60%),
+    radial-gradient(700px at 80% 75%, rgba(106,127,179,.12), transparent 60%),
+    radial-gradient(600px at 60% 20%, rgba(255,255,255,.35), transparent 65%);
+  --page-vignette: rgba(255,255,255,.18);
+  --gal-stage-bg: #b9c8da;
+  --gal-dialog-bg: rgba(255,255,255,.6);
+  --gal-surface-bg: rgba(255,255,255,.65);
+  --gal-border: rgba(255,255,255,.75);
+  --gal-text: #3c4254;
+  --gal-accent: #5b6ea6;
+}
+/* 质感：磨砂玻璃面板；涟漪同心晕 ornament；失重细字 */
+body.style-dream {
+  font-weight: 300; line-height: 2.05;
+}
+body.style-dream .scene-box,
+body.style-dream .status-panel, body.style-dream .inventory-panel, body.style-dream .commentary,
+body.style-dream .ending-card {
+  backdrop-filter: blur(16px); -webkit-backdrop-filter: blur(16px);
+  border-color: rgba(255,255,255,.55);
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.5), var(--shadow-panel);
+}
+body.style-dream .cover-ornament { border-radius: 50%; border: 1px solid color-mix(in srgb, var(--accent) 55%, transparent); }
+body.style-dream .cover-ornament::before {
+  content: ''; position: absolute; inset: 4px; border-radius: 50%;
+  border: 1px dotted color-mix(in srgb, var(--accent) 45%, transparent);
+}
+body.style-dream .cover-ornament::after {
+  inset: 12px; border-radius: 50%;
+  border: 1px dashed color-mix(in srgb, var(--accent) 40%, transparent);
+}
+body.style-dream .cover-title { font-weight: 300; letter-spacing: .3em; }
+body.style-dream .btn { backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px); }
+body.style-dream.mode-galgame .narration,
+body.style-dream.mode-galgame .choice { backdrop-filter: blur(18px); -webkit-backdrop-filter: blur(18px); }
+body.style-dream.mode-galgame .attr-bar { background: rgba(0,0,0,.08); }
+
+/* ============================================================
+   style-scifi 科幻霓虹
+   深空藏蓝 · 青/品双霓虹 · 网格地平线 · HUD 切角与辉光
+   ============================================================ */
+body.style-scifi {
+  --bg: #0a0f1e;
+  --bg-deep: #05070f;
+  --panel: #131c30;
+  --panel-2: #1b2740;
+  --text: #dce9ff;
+  --sub: #7f93c2;
+  --border: #28406b;
+  --accent: #00e5ff;
+  --accent-light: #7df3ff;
+  --on-accent: #002b36;
+  --ok: #34d399;
+  --warn: #e6a23c;
+  --danger: #ff4d6d;
+  --font-title: 'DIN Alternate','Bahnschrift','Arial Narrow',ui-monospace,Menlo,Consolas,monospace;
+  --font-body: 'PingFang SC',system-ui,sans-serif;
+  --font-ui: ui-monospace,Menlo,Consolas,monospace;
+  --radius-s: 2px;
+  --radius-m: 4px;
+  --shadow-panel: 0 0 24px rgba(0,229,255,.08);
+  --shadow-float: 0 0 18px rgba(0,229,255,.16);
+  --page-texture: radial-gradient(900px at 50% -12%, rgba(0,229,255,.1), transparent 60%),
+    repeating-linear-gradient(0deg, transparent 0 39px, rgba(0,229,255,.05) 39px 40px),
+    repeating-linear-gradient(90deg, transparent 0 39px, rgba(0,229,255,.05) 39px 40px);
+  --page-vignette: rgba(2,4,12,.6);
+  --gal-stage-bg: #05070f;
+  --gal-dialog-bg: rgba(10,16,30,.92);
+  --gal-surface-bg: rgba(10,16,30,.7);
+  --gal-border: rgba(0,229,255,.4);
+  --gal-text: #dce9ff;
+  --gal-accent: #00e5ff;
+}
+/* 质感：切角面板（HUD）+ 外辉光；八边形 ornament；标题辉光 */
+body.style-scifi .scene-box,
+body.style-scifi .status-panel, body.style-scifi .inventory-panel, body.style-scifi .commentary,
+body.style-scifi .ending-card {
+  clip-path: polygon(12px 0, 100% 0, 100% calc(100% - 12px), calc(100% - 12px) 100%, 0 100%, 0 12px);
+}
+body.style-scifi .cover-ornament {
+  clip-path: polygon(12px 0, calc(100% - 12px) 0, 100% 12px, 100% calc(100% - 12px),
+    calc(100% - 12px) 100%, 12px 100%, 0 calc(100% - 12px), 0 12px);
+  border-radius: 0;
+}
+body.style-scifi .cover-ornament::after { inset: 10px; border-width: 1px; }
+body.style-scifi .cover-title {
+  letter-spacing: .12em;
+  text-shadow: 0 0 18px color-mix(in srgb, var(--accent) 45%, transparent);
+}
+body.style-scifi .btn:hover { box-shadow: 0 0 16px color-mix(in srgb, var(--accent) 35%, transparent); }
+body.style-scifi .choice:hover { border-color: var(--accent); }
+body.style-scifi .hint { box-shadow: 0 0 14px color-mix(in srgb, var(--accent) 35%, transparent); }
+
+/* ============================================================
+   style-steampunk 蒸汽朋克
+   深玳瑁木 · 黄铜机械 · 四角铆钉 · 仪表刻度 · 维多利亚工业版画
+   ============================================================ */
+body.style-steampunk {
+  --bg: #221a10;
+  --bg-deep: #161009;
+  --panel: #3a2d1c;
+  --panel-2: #453624;
+  --text: #efe2c8;
+  --sub: #b09a70;
+  --border: #6b5127;
+  --accent: #c88a2d;
+  --accent-light: #e8b96a;
+  --on-accent: #1c1408;
+  --ok: #7da05a;
+  --warn: #c98f2a;
+  --danger: #a63a2b;
+  --font-title: 'Copperplate','Didot',Georgia,serif;
+  --font-body: 'Noto Serif SC','Songti SC',Georgia,serif;
+  --font-ui: ui-monospace,Menlo,Consolas,monospace;
+  --radius-s: 2px;
+  --radius-m: 6px;
+  --shadow-panel: 0 8px 24px rgba(0,0,0,.5);
+  --shadow-float: 0 6px 18px rgba(0,0,0,.6);
+  --page-texture: repeating-linear-gradient(45deg, transparent 0 42px, rgba(200,138,45,.025) 42px 43px);
+  --page-vignette: rgba(24,12,0,.5);
+  --gal-stage-bg: #161009;
+  --gal-dialog-bg: rgba(40,28,14,.95);
+  --gal-surface-bg: rgba(0,0,0,.5);
+  --gal-border: rgba(200,138,45,.5);
+  --gal-text: #efe2c8;
+  --gal-accent: #e8b96a;
+}
+/* 质感：面板四角铆钉 + 金属拉丝；齿轮 ornament；黄铜主按钮 */
+body.style-steampunk .scene-box,
+body.style-steampunk .status-panel, body.style-steampunk .inventory-panel, body.style-steampunk .commentary,
+body.style-steampunk .ending-card {
+  border: 1px solid #6b5127;
+  background-color: var(--panel);
+  background-image:
+    repeating-linear-gradient(105deg, rgba(255,220,150,.04) 0 2px, transparent 2px 3px),
+    radial-gradient(circle at 9px 9px, rgba(232,185,106,.9) 0 1.5px, transparent 2.4px),
+    radial-gradient(circle at calc(100% - 9px) 9px, rgba(232,185,106,.9) 0 1.5px, transparent 2.4px),
+    radial-gradient(circle at 9px calc(100% - 9px), rgba(232,185,106,.9) 0 1.5px, transparent 2.4px),
+    radial-gradient(circle at calc(100% - 9px) calc(100% - 9px), rgba(232,185,106,.9) 0 1.5px, transparent 2.4px);
+  background-repeat: no-repeat;
+}
+body.style-steampunk .cover-ornament { border: 2px double var(--accent); border-radius: 50%; }
+body.style-steampunk .cover-ornament::before {
+  content: ''; position: absolute; top: -5px; left: 50%; width: 12px; height: 6px;
+  transform: translateX(-50%); background: var(--accent); border-radius: 2px;
+}
+body.style-steampunk .cover-ornament::after {
+  inset: 13px; border: 1px solid var(--accent-light);
+  transform: rotate(45deg); background: transparent;
+}
+body.style-steampunk .cover-title { letter-spacing: .1em; }
+body.style-steampunk .btn-primary {
+  background: linear-gradient(180deg, #e0ad57, #b57d22);
+  border-color: #8a5f18; color: #1c1408;
+}
+body.style-steampunk .btn-primary:hover { filter: brightness(1.08); }
+
+/* ============================================================
+   style-visual 视觉小说（日系青春）
+   黄昏霞光滤镜 · 午后暖纸 · 深青墨字 · 书签细线
+   ============================================================ */
+body.style-visual {
+  --bg: #fbf6ee;
+  --bg-deep: #f0e2cf;
+  --panel: #ffffff;
+  --panel-2: #f4ece0;
+  --text: #2f3a44;
+  --sub: #7d8890;
+  --border: #e6dccb;
+  --accent: #e8853d;
+  --accent-light: #f6b478;
+  --on-accent: #ffffff;
+  --ok: #57a773;
+  --warn: #c78a1f;
+  --danger: #c2453a;
+  --font-title: 'PingFang SC','Microsoft YaHei',system-ui,sans-serif;
+  --font-body: 'PingFang SC',system-ui,sans-serif;
+  --font-ui: 'PingFang SC','Microsoft YaHei',system-ui,sans-serif;
+  --radius-s: 6px;
+  --radius-m: 12px;
+  --shadow-panel: 0 4px 18px rgba(120,80,30,.08);
+  --shadow-float: 0 6px 20px rgba(120,80,30,.15);
+  --page-texture: url("data:image/svg+xml;utf8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.8' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.03'/%3E%3C/svg%3E");
+  --page-vignette: rgba(90,60,20,.1);
+  --gal-stage-bg: #1f130d;
+  --gal-dialog-bg: rgba(16,20,26,.88);
+  --gal-surface-bg: rgba(0,0,0,.55);
+  --gal-border: rgba(232,133,61,.4);
+  --gal-text: #f5efe6;
+  --gal-accent: #ffb066;
+}
+/* 质感：黄昏霞光 + 页底大气渐变；双细线夹菱形 ornament；书签线面板 */
+body.style-visual .bg-layer {
+  background: radial-gradient(900px at 68% 16%, rgba(232,133,61,.16), transparent 58%),
+    linear-gradient(#fbf6ee, #e8efe9);
+}
+body.style-visual .cover-ornament {
+  border-top: 1px solid var(--accent); border-bottom: 1px solid var(--accent);
+  border-left: none; border-right: none; border-radius: 0; height: 20px;
+}
+body.style-visual .cover-ornament::after {
+  inset: auto; top: 50%; left: 50%; width: 10px; height: 10px;
+  border: 1px solid var(--accent);
+  transform: translate(-50%, -50%) rotate(45deg);
+}
+body.style-visual .cover-title { font-weight: 700; letter-spacing: .06em; }
+body.style-visual .scene-box {
+  border-left: 3px solid color-mix(in srgb, var(--accent) 45%, transparent);
+}
+body.style-visual .ending-card { border-left: 3px solid color-mix(in srgb, var(--accent) 45%, transparent); }
+body.style-visual .btn-primary { border-radius: 999px; }
+body.style-visual.mode-galgame .attr-bar { background: rgba(255,255,255,.16); }
+
+/* ============================================================
+   style-western 西幻羊皮纸
+   羊皮纸面 · 铁锈墨 · 茶渍与花边 · 盾徽纹章 · 做旧卷角
+   ============================================================ */
+body.style-western {
+  --bg: #efe3c8;
+  --bg-deep: #dcc69f;
+  --panel: #f4ead3;
+  --panel-2: #e9dcbd;
+  --text: #2d241b;
+  --sub: #6e5b45;
+  --border: #b09363;
+  --accent: #4b321e;
+  --accent-light: #7a5c3a;
+  --on-accent: #f6ecd9;
+  --ok: #5f7348;
+  --warn: #a5741f;
+  --danger: #8f2f22;
+  --font-title: Georgia,'Times New Roman','Noto Serif SC',serif;
+  --font-body: Georgia,'Times New Roman','Noto Serif SC',serif;
+  --font-ui: Georgia,'Times New Roman','Noto Serif SC',serif;
+  --radius-s: 6px;
+  --radius-m: 10px;
+  --shadow-panel: 0 6px 18px rgba(74,52,20,.16);
+  --shadow-float: 0 6px 20px rgba(74,52,20,.22);
+  --page-texture:
+    url("data:image/svg+xml;utf8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='220' height='220'%3E%3Cfilter id='b'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.018' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23b)' opacity='0.06'/%3E%3C/svg%3E"),
+    url("data:image/svg+xml;utf8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='g'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23g)' opacity='0.035'/%3E%3C/svg%3E"),
+    radial-gradient(240px at 12% 22%, rgba(139,105,20,.07), transparent 70%),
+    radial-gradient(300px at 86% 72%, rgba(139,105,20,.05), transparent 70%);
+  --page-vignette: rgba(74,52,10,.3);
+  --gal-stage-bg: #241a0e;
+  --gal-dialog-bg: rgba(246,236,213,.95);
+  --gal-surface-bg: rgba(246,236,213,.85);
+  --gal-border: rgba(139,80,20,.5);
+  --gal-text: #2d241b;
+  --gal-accent: #7a4a1e;
+}
+/* 质感：手绘双线 + 四角花点；盾徽 ornament；做旧双段渐变按钮 */
+body.style-western .scene-box,
+body.style-western .status-panel, body.style-western .inventory-panel, body.style-western .commentary,
+body.style-western .ending-card {
+  border: 2px double var(--border);
+  background-color: var(--panel);
+  background-image:
+    radial-gradient(circle, rgba(122,58,22,.4) 0 1.4px, transparent 2.4px),
+    radial-gradient(circle, rgba(122,58,22,.4) 0 1.4px, transparent 2.4px),
+    radial-gradient(circle, rgba(122,58,22,.4) 0 1.4px, transparent 2.4px),
+    radial-gradient(circle, rgba(122,58,22,.4) 0 1.4px, transparent 2.4px);
+  background-position: 8px 8px, calc(100% - 8px) 8px, 8px calc(100% - 8px), calc(100% - 8px) calc(100% - 8px);
+  background-repeat: no-repeat;
+}
+body.style-western .cover-ornament {
+  border-radius: 50% 50% 6px 6px / 55% 55% 6px 6px;
+  border-color: var(--accent);
+}
+body.style-western .cover-ornament::after { inset: 9px; border-radius: inherit; }
+body.style-western .cover-title { letter-spacing: .14em; }
+body.style-western .btn-primary {
+  background: linear-gradient(180deg, #7a5c3a, #4b321e);
+  border-color: #3a2715;
+}
+body.style-western .btn-primary:hover { background: linear-gradient(180deg, #8f6f49, #5d4127); }
+body.style-western .cover-ornament { background: color-mix(in srgb, var(--accent) 6%, transparent); }
+/* galgame：羊皮纸对话框 + 铁锈墨字（属性轨改深色） */
+body.style-western.mode-galgame .attr-bar { background: rgba(0,0,0,.14); }
 
 /* ---------- 移动端 ---------- */
 @media (max-width: 860px) {
@@ -127,4 +968,7 @@ body {
   .status-panel, .inventory-panel, .commentary { max-height: none; }
   .cover { padding-top: 8vh; }
   .scene-box { padding: 18px 16px; }
+  .mode-galgame .char-portrait { width: 130px; }
+  .mode-galgame .scene-box { padding-bottom: 230px; }
+  .mode-galgame .choices { bottom: 150px; }
 }

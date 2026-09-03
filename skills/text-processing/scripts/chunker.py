@@ -4,7 +4,7 @@
 
 用法:
     python chunker.py --ingest 小说.txt --out runtime/<书>/
-    python chunker.py --chunk --chunks-json runtime/<书>/chunks.json --mode g1_narrative --out runtime/<书>/
+    python chunker.py --chunk --chunks-json runtime/<书>/chunks.json --mode classic --out runtime/<书>/
 """
 import argparse
 import json
@@ -105,7 +105,7 @@ def split_chapters(text: str):
 
 
 def chunk_by_mode(chapters, mode: str, chunk_chars: int = 8000):
-    """按模式策略分块。LLM 辅助的边界（G2/S3/S4）通过 mark_boundaries 传入。"""
+    """按模式分块（当前实现为定长切块，模式特异性处理在 extract 阶段）。"""
     chunks, buf, buf_ids, size = [], [], [], 0
     for ch in chapters:
         buf.append(ch)
@@ -153,7 +153,7 @@ def main():
     ap.add_argument('--ingest', help='原始小说文件路径')
     ap.add_argument('--chunk', action='store_true', help='执行分块')
     ap.add_argument('--chapters-json', help='chapters.json 路径（chunk 模式用）')
-    ap.add_argument('--mode', default='g1_narrative', help='游戏模式 id')
+    ap.add_argument('--mode', default='classic', help='游戏模式 id')
     ap.add_argument('--chunk-chars', type=int, default=8000)
     ap.add_argument('--out', required=True, help='输出目录 runtime/<书>/')
     args = ap.parse_args()

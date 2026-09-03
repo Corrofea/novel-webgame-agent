@@ -1,16 +1,7 @@
 {
   "id": "western",
   "name": "西幻羊皮纸",
-  "适用": "西幻/欧风/中世纪",
-  "colors": {
-    "bg": "#F0E8D7",
-    "panel": "#E8DCC4",
-    "accent": "#4B321E",
-    "accent_light": "#7A5C3A",
-    "text": "#2D241B",
-    "sub": "#6E5B45",
-    "border": "#AA9168"
-  },
-  "fonts": { "title": "Georgia, 'Times New Roman', serif", "body": "Georgia, serif" },
-  "cover": { "title_color": "#4B321E", "ornament": "crest" }
+  "适用": "西幻/中世纪/欧风冒险",
+  "气质": "羊皮纸面、铁锈墨、茶渍花边与盾徽，做旧卷角。",
+  "illustration_style": "oil_classic"
 }

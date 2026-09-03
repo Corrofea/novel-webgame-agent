@@ -2,10 +2,32 @@
 """通用工具：路径、文件读写、文本处理。"""
 import hashlib
 import json
+import os
 import re
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
+
+
+def load_dotenv(path=None):
+    """极简 .env 加载：KEY=VALUE 逐行，'#' 注释；已有环境变量不覆盖。
+
+    不引 python-dotenv 依赖（项目只依赖 requests）。默认读项目根目录 .env，
+    agent.py / tools 的 main() 都会调用，保证 README 的 `cp .env.example .env`
+    流程真实生效。
+    """
+    p = Path(path) if path else ROOT / '.env'
+    if not p.exists():
+        return False
+    for line in p.read_text(encoding='utf-8').splitlines():
+        line = line.strip()
+        if not line or line.startswith('#') or '=' not in line:
+            continue
+        k, _, v = line.partition('=')
+        k, v = k.strip(), v.strip().strip('"').strip("'")
+        if k and k not in os.environ:
+            os.environ[k] = v
+    return True
 
 
 def slugify(name: str, max_len: int = 40) -> str:

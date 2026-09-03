@@ -1,19 +1,7 @@
 {
   "id": "ancient",
-  "name": "古风",
-  "适用": "古代/武侠/仙侠/历史",
-  "colors": {
-    "bg": "#F8F2E7",
-    "panel": "#F1E7D3",
-    "accent": "#8B0000",
-    "accent_light": "#A53F3F",
-    "text": "#32281E",
-    "sub": "#6B5544",
-    "border": "#B8A080"
-  },
-  "fonts": { "title": "STKaiti, KaiTi, serif", "body": "STSong, SimSun, serif" },
-  "cover": {
-    "title_color": "#8B0000",
-    "ornament": "seal"
-  }
+  "name": "古风水墨",
+  "适用": "武侠/仙侠/古言/历史",
+  "气质": "素绢宣纸、淡墨晕染、朱砂点睛，册页留白。楷体题字，无暗角（留白即风格）。",
+  "illustration_style": "ink_wash"
 }

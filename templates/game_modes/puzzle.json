@@ -1,7 +1,7 @@
 {
-  "id": "s3_puzzle",
+  "id": "puzzle",
   "name": "解谜探案",
-  "适用": "侦探/推理/悬疑文本（强逻辑）",
+  "适用": "侦探/推理/悬疑文本（强逻辑）。注意与 riddle 模式（字谜问答）的分界：puzzle = 推理链玩法（线索收集 → 逻辑推导 → 提交结论），玩法核心是「选择与推导」，仍然使用 choices/inventory/attributes 机制；riddle = 文字猜谜玩法（谜面+答案逐字遮罩，输入文字揭示），玩法核心是「猜专有名词」，使用 riddle 节点。文本含完整案件结构（线索+证词+真凶）→ puzzle；文本只有人物名/章节名等可猜标志元素 → riddle。",
   "selection_criteria": [
     "推理/解谜是文本核心，人物与环境变动弱于逻辑链",
     "存在案件/谜题结构：线索 → 推导 → 结论",
@@ -12,6 +12,18 @@
     "unit": "案件弧线",
     "method": "按案件或谜题弧线切块；每块提取：线索条目（持有者/内容/指向/解锁条件）、证词（人物视角陈述）、时间线细节",
     "decision_point_extraction": "对话选项（套话/追问/出示线索）、推理结论提交点（可对可错）"
+  },
+  "extraction": {
+    "task": "把本块文本解构为案件素材：cases（本块涉及的案件/谜题：title/涉及人物/一句话案情）、clues（线索条目：content/原文出处/holder 持有者/hints 指向的真相或疑点）、testimonies（证词：speaker/statement/是否可疑）、timeline_contradictions（时间线矛盾点：a 说 vs b 说/原文细节）。全部引用原文，不推测不创作；无信息用空数组。",
+    "schema": {
+      "items": [
+        {"kind": "case", "title": "咖啡馆命案", "characters": ["店主", "常客甲"], "summary": "店主死于后厨，疑点指向常客"},
+        {"kind": "clue", "content": "后厨地板有拖拽痕迹", "source": "第三回搜查描写", "holder": "探长", "points_to": "尸体曾被移动"},
+        {"kind": "testimony", "speaker": "常客甲", "statement": "我八点就离开了咖啡馆", "suspect": true},
+        {"kind": "contradiction", "detail": "常客甲自称八点离开，但打烊记录显示他九点仍在店内"}
+      ]
+    },
+    "uses": "design 阶段据此设计：case→案件结构、clues→inventory 线索物品（≤20 条）、testimonies→对话询问对象与可追问点、contradictions→推理台结论候选与真凶线索链"
   },
   "design_guidance": {
     "structure": "对话推进（微 galgame 式）→ 线索收集 → 推理台提交结论 → 分支后果",
@@ -35,7 +47,7 @@
     "线索数量与 inventory.limit 匹配"
   ],
   "runtime": {
-    "mode_id": "s3_puzzle",
+    "mode_id": "puzzle",
     "mode_name": "解谜探案",
     "mechanics": ["choices", "inventory", "attributes"],
     "attributes": [],

@@ -1,16 +1,7 @@
 {
   "id": "light",
   "name": "轻小说清新",
-  "适用": "轻小说/治愈/日常",
-  "colors": {
-    "bg": "#FFF9F2",
-    "panel": "#FFFFFF",
-    "accent": "#FF8A9E",
-    "accent_light": "#FFB7C4",
-    "text": "#4A4453",
-    "sub": "#A79EAD",
-    "border": "#F0E4DC"
-  },
-  "fonts": { "title": "PingFang SC, 'Comic Sans MS', sans-serif", "body": "PingFang SC, sans-serif" },
-  "cover": { "title_color": "#FF8A9E", "ornament": "line" }
+  "适用": "轻小说/治愈/校园日常/萌系",
+  "气质": "奶油底、草莓粉、大柔焦光斑与圆润贴纸感，空气感留白。",
+  "illustration_style": "cel_japan"
 }

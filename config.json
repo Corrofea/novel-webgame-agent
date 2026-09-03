@@ -2,21 +2,52 @@
   "api": {
     "base_url": "https://api.deepseek.com",
     "api_key_env": "DEEPSEEK_API_KEY",
-    "chat_model": "deepseek-chat",
-    "reasoner_model": "deepseek-reasoner",
-    "timeout": 180,
-    "max_retries": 3,
-    "retry_delay": 5
+    "chat_model": "deepseek-v4-flash",
+    "reasoner_model": "deepseek-v4-pro",
+    "timeout": 60,
+    "max_retries": 5,
+    "retry_delay": 2,
+    "call_deadline": 360
+  },
+  "image": {
+    "base_url": "https://api.siliconflow.cn/v1",
+    "api_key_env": "SILICONFLOW_API_KEY",
+    "model": "Kwai-Kolors/Kolors",
+    "size": "1024x1024",
+    "timeout": 60,
+    "max_retries": 4,
+    "retry_delay": 2,
+    "webp": true,
+    "webp_quality": 82
   },
   "workers": {
-    "detect":   { "model": "chat" },
-    "summarize": { "model": "chat" },
-    "style":    { "model": "chat" },
-    "characters": { "model": "chat" },
-    "design":   { "model": "reasoner" },
-    "generate": { "model": "chat" },
-    "repair":   { "model": "chat" },
-    "qa_review": { "model": "reasoner" }
+    "detect": {
+      "model": "chat"
+    },
+    "extract": {
+      "model": "chat"
+    },
+    "summarize": {
+      "model": "chat"
+    },
+    "style": {
+      "model": "chat"
+    },
+    "characters": {
+      "model": "chat"
+    },
+    "design": {
+      "model": "reasoner"
+    },
+    "generate": {
+      "model": "chat"
+    },
+    "repair": {
+      "model": "chat"
+    },
+    "qa_review": {
+      "model": "reasoner"
+    }
   },
   "pipeline": {
     "chunk_chars": 8000,
@@ -25,11 +56,17 @@
     "mock_mode": false,
     "illustration_styles": {
       "ancient": "ink_wash",
+      "light": "cel_japan",
       "modern": "flat_modern",
+      "noir": "noir_line",
       "scifi": "cyber_neon",
       "western": "oil_classic",
-      "noir": "noir_line",
-      "light": "cel_japan"
+      "book": "engraving_book",
+      "gothic": "dark_gothic",
+      "steampunk": "brass_steampunk",
+      "dream": "dreamy_impasto",
+      "fairytale": "paper_cut",
+      "visual": "jp_sunset"
     }
   },
   "upload": {
